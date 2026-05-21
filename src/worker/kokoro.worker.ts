@@ -2,7 +2,9 @@
 import { KokoroTTS } from "kokoro-js";
 
 const MODEL_ID = "onnx-community/Kokoro-82M-v1.0-ONNX";
-const VOICE = "af_heart";
+const DEFAULT_VOICE = "af_heart";
+
+export type VoiceId = "af_heart" | "af_bella" | "am_michael" | "am_eric";
 
 type LoadedDevice = "webgpu" | "wasm";
 
@@ -14,8 +16,21 @@ interface Loaded {
 
 let loaded: Promise<Loaded> | null = null;
 
-async function tryLoad(device: LoadedDevice, dtype: "fp32" | "q8"): Promise<KokoroTTS> {
-  return KokoroTTS.from_pretrained(MODEL_ID, { dtype, device });
+async function tryLoad(
+  device: LoadedDevice,
+  dtype: "fp32" | "q8",
+  progress_callback?: (ev: ProgressEventRaw) => void,
+): Promise<KokoroTTS> {
+  return KokoroTTS.from_pretrained(MODEL_ID, { dtype, device, progress_callback });
+}
+
+interface ProgressEventRaw {
+  status: string;
+  file?: string;
+  name?: string;
+  loaded?: number;
+  total?: number;
+  progress?: number;
 }
 
 interface AdapterRequester {
@@ -35,26 +50,42 @@ async function hasUsableWebGPU(): Promise<boolean> {
 function load(): Promise<Loaded> {
   if (loaded) return loaded;
   loaded = (async () => {
+    const cb = (ev: ProgressEventRaw): void => {
+      post({
+        type: "progress",
+        status: ev.status,
+        file: ev.file,
+        loaded: ev.loaded,
+        total: ev.total,
+      });
+    };
     if (await hasUsableWebGPU()) {
       try {
-        const tts = await tryLoad("webgpu", "fp32");
+        const tts = await tryLoad("webgpu", "fp32", cb);
         return { tts, device: "webgpu", sampleRate: 24000 };
       } catch (err) {
         console.warn("[kokoro] WebGPU load failed, falling back to WASM", err);
       }
     }
-    const tts = await tryLoad("wasm", "q8");
+    const tts = await tryLoad("wasm", "q8", cb);
     return { tts, device: "wasm", sampleRate: 24000 };
   })();
   return loaded;
 }
 
-type InMsg = { type: "warmup" } | { type: "synth"; id: number; text: string };
+type InMsg = { type: "warmup" } | { type: "synth"; id: number; text: string; voice?: VoiceId };
 
 type OutMsg =
   | { type: "ready"; device: LoadedDevice }
   | { type: "error"; id?: number; message: string }
-  | { type: "synth-result"; id: number; pcm: Float32Array; sampleRate: number };
+  | { type: "synth-result"; id: number; pcm: Float32Array; sampleRate: number }
+  | {
+      type: "progress";
+      status: string;
+      file?: string | undefined;
+      loaded?: number | undefined;
+      total?: number | undefined;
+    };
 
 self.addEventListener("message", async (ev: MessageEvent<InMsg>) => {
   const msg = ev.data;
@@ -66,7 +97,8 @@ self.addEventListener("message", async (ev: MessageEvent<InMsg>) => {
     }
     if (msg.type === "synth") {
       const { tts } = await load();
-      const audio = await tts.generate(msg.text, { voice: VOICE });
+      const voice = msg.voice ?? DEFAULT_VOICE;
+      const audio = await tts.generate(msg.text, { voice });
       // RawAudio: .audio (Float32Array), .sampling_rate (number)
       const pcm = audio.audio as Float32Array;
       const sampleRate = audio.sampling_rate as number;

@@ -1,270 +1,512 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ConfirmDialog } from "./components/ConfirmDialog";
+import { DiscardDialog } from "./components/DiscardDialog";
+import { Colophon, Masthead } from "./components/Masthead";
 import {
   type SessionMeta,
   createSession,
   deleteSession,
   getAudioBlob,
   listSessions,
+  updateSession,
 } from "./storage/sessionStore";
+import type { AppStatus, DocState, View } from "./types";
+import { OnboardingView } from "./views/OnboardingView";
+import { ReaderView } from "./views/ReaderView";
+import { SettingsView } from "./views/SettingsView";
 import { pcmToWavBlob } from "./wav";
-import type { InMsg, OutMsg } from "./worker/kokoro.worker";
+import type { InMsg, OutMsg, VoiceId } from "./worker/kokoro.worker";
 
-type Status =
-  | { kind: "idle" }
-  | { kind: "loading" }
-  | { kind: "ready"; device: "webgpu" | "wasm" }
-  | { kind: "synthesising" }
-  | { kind: "error"; message: string };
+const VOICE_KEY = "catm:voice";
+const DEFAULT_VOICE: VoiceId = "af_heart";
+
+function readVoice(): VoiceId {
+  try {
+    const v = localStorage.getItem(VOICE_KEY);
+    if (v === "af_heart" || v === "af_bella" || v === "am_michael" || v === "am_eric") return v;
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_VOICE;
+}
+
+function writeVoice(v: VoiceId): void {
+  try {
+    localStorage.setItem(VOICE_KEY, v);
+  } catch {
+    /* ignore */
+  }
+}
+
+const EMPTY_DOC: DocState = {
+  id: null,
+  sourceText: "",
+  savedText: "",
+  audioUrl: null,
+  audioVoice: null,
+};
+
+const ONBOARDED_KEY = "catm:onboarded";
+
+function readOnboarded(): boolean {
+  try {
+    return localStorage.getItem(ONBOARDED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeOnboarded(): void {
+  try {
+    localStorage.setItem(ONBOARDED_KEY, "1");
+  } catch {
+    /* ignore */
+  }
+}
 
 export function App(): React.JSX.Element {
-  const [text, setText] = useState("Hello world.");
-  const [status, setStatus] = useState<Status>({ kind: "idle" });
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [library, setLibrary] = useState<SessionMeta[]>([]);
-  const deviceRef = useRef<"webgpu" | "wasm">("wasm");
+  const [view, setView] = useState<View>("reader");
+  const [onboarded, setOnboarded] = useState<boolean>(() => readOnboarded());
+  const [status, setStatus] = useState<AppStatus>(() =>
+    readOnboarded() ? { kind: "loading" } : { kind: "first-launch" },
+  );
+  const [doc, setDoc] = useState<DocState>(EMPTY_DOC);
+  const [sessions, setSessions] = useState<SessionMeta[]>([]);
+  const [speed, setSpeed] = useState<number>(1.25);
+  const [pendingNav, setPendingNav] = useState<
+    { kind: "open"; id: string } | { kind: "new" } | null
+  >(null);
+  const [playToken, setPlayToken] = useState(0);
+  const [showReadyStamp, setShowReadyStamp] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [voice, setVoice] = useState<VoiceId>(() => readVoice());
+  const [previewVoice, setPreviewVoice] = useState<VoiceId | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
 
+  const deviceRef = useRef<"webgpu" | "wasm">("wasm");
   const workerRef = useRef<Worker | null>(null);
-  const nextIdRef = useRef(1);
-  const pendingRef = useRef(
+  const nextSynthIdRef = useRef(1);
+  const pendingSynthRef = useRef(
     new Map<number, (r: { pcm: Float32Array; sampleRate: number }) => void>(),
   );
+  // Aggregated download progress across all files reported by kokoro-js.
+  const progressMapRef = useRef<Map<string, { loaded: number; total: number }>>(new Map());
+
+  const modified =
+    doc.sourceText !== doc.savedText || (doc.audioVoice !== null && doc.audioVoice !== voice);
 
   const refreshLibrary = useCallback(async () => {
-    setLibrary(await listSessions());
+    setSessions(await listSessions());
   }, []);
 
   useEffect(() => {
     void refreshLibrary();
   }, [refreshLibrary]);
 
-  useEffect(() => {
+  const startWorker = useCallback(() => {
+    if (workerRef.current) return;
     const w = new Worker(new URL("./worker/kokoro.worker.ts", import.meta.url), {
       type: "module",
     });
     workerRef.current = w;
-    setStatus({ kind: "loading" });
 
     w.addEventListener("message", (ev: MessageEvent<OutMsg>) => {
       const msg = ev.data;
       if (msg.type === "ready") {
+        const wasOnboarding = !readOnboarded();
         deviceRef.current = msg.device;
         setStatus({ kind: "ready", device: msg.device });
+        if (wasOnboarding) {
+          writeOnboarded();
+          setOnboarded(true);
+          setShowReadyStamp(true);
+        }
+        return;
+      }
+      if (msg.type === "progress") {
+        if (msg.status === "progress" && msg.file && typeof msg.loaded === "number") {
+          const entry = progressMapRef.current.get(msg.file) ?? { loaded: 0, total: 0 };
+          entry.loaded = msg.loaded;
+          if (typeof msg.total === "number" && msg.total > entry.total) entry.total = msg.total;
+          progressMapRef.current.set(msg.file, entry);
+        }
+        const allLoaded = Array.from(progressMapRef.current.values()).reduce(
+          (a, v) => a + v.loaded,
+          0,
+        );
+        const allTotal = Array.from(progressMapRef.current.values()).reduce(
+          (a, v) => a + v.total,
+          0,
+        );
+        if (allTotal > 0) {
+          setStatus({
+            kind: "downloading",
+            loadedMb: allLoaded / (1024 * 1024),
+            totalMb: allTotal / (1024 * 1024),
+            fraction: Math.min(1, allLoaded / allTotal),
+          });
+        }
         return;
       }
       if (msg.type === "synth-result") {
-        const resolve = pendingRef.current.get(msg.id);
+        const resolve = pendingSynthRef.current.get(msg.id);
         if (resolve) {
-          pendingRef.current.delete(msg.id);
+          pendingSynthRef.current.delete(msg.id);
           resolve({ pcm: msg.pcm, sampleRate: msg.sampleRate });
         }
         return;
       }
       if (msg.type === "error") {
-        if (msg.id !== undefined) pendingRef.current.delete(msg.id);
+        if (msg.id !== undefined) pendingSynthRef.current.delete(msg.id);
         setStatus({ kind: "error", message: msg.message });
       }
     });
 
     const warmup: InMsg = { type: "warmup" };
     w.postMessage(warmup);
-
-    return () => {
-      w.terminate();
-      workerRef.current = null;
-    };
   }, []);
 
+  // If the user is already onboarded, the worker boots on mount.
+  // Otherwise we defer worker start until they click "Download voice".
   useEffect(() => {
+    if (!onboarded) return;
+    startWorker();
     return () => {
-      if (audioUrl) URL.revokeObjectURL(audioUrl);
+      workerRef.current?.terminate();
+      workerRef.current = null;
     };
-  }, [audioUrl]);
+  }, [onboarded, startWorker]);
 
-  function setAudioForBlob(blob: Blob): void {
-    const url = URL.createObjectURL(blob);
-    setAudioUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return url;
+  useEffect(() => {
+    const url = doc.audioUrl;
+    return () => {
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [doc.audioUrl]);
+
+  function dismissReadyStamp(): void {
+    if (showReadyStamp) setShowReadyStamp(false);
+  }
+
+  function onStartDownload(): void {
+    if (workerRef.current) return;
+    setStatus({ kind: "loading" });
+    startWorker();
+  }
+
+  async function performSynth(
+    text: string,
+    voiceOverride?: VoiceId,
+  ): Promise<{ pcm: Float32Array; sampleRate: number }> {
+    const w = workerRef.current;
+    if (!w) throw new Error("worker not ready");
+    const id = nextSynthIdRef.current++;
+    return new Promise((resolve) => {
+      pendingSynthRef.current.set(id, resolve);
+      const msg: InMsg = { type: "synth", id, text, voice: voiceOverride ?? voice };
+      w.postMessage(msg);
     });
   }
 
-  const canSpeak = status.kind === "ready" || status.kind === "error";
+  async function onPreviewVoice(v: VoiceId): Promise<void> {
+    if (status.kind !== "ready" || previewVoice) return;
+    setPreviewVoice(v);
+    try {
+      const result = await performSynth("Hello, this is the catm voice.", v);
+      const blob = pcmToWavBlob(result.pcm, result.sampleRate);
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      previewAudioRef.current = audio;
+      audio.addEventListener("ended", () => {
+        URL.revokeObjectURL(url);
+        setPreviewVoice(null);
+      });
+      await audio.play();
+    } catch {
+      setPreviewVoice(null);
+    }
+  }
 
-  async function onSpeak(): Promise<void> {
-    const w = workerRef.current;
-    const trimmed = text.trim();
-    if (!w || !trimmed) return;
+  function onChangeVoice(v: VoiceId): void {
+    if (v === voice) return;
+    setVoice(v);
+    writeVoice(v);
+  }
+
+  async function onRead(): Promise<void> {
+    const trimmed = doc.sourceText.trim();
+    if (!trimmed || status.kind !== "ready") return;
+    dismissReadyStamp();
     setStatus({ kind: "synthesising" });
-    const id = nextIdRef.current++;
-    const result = await new Promise<{ pcm: Float32Array; sampleRate: number }>((resolve) => {
-      pendingRef.current.set(id, resolve);
-      const msg: InMsg = { type: "synth", id, text: trimmed };
-      w.postMessage(msg);
-    });
+    const result = await performSynth(trimmed);
     const blob = pcmToWavBlob(result.pcm, result.sampleRate);
-    setAudioForBlob(blob);
     const durationSec = result.pcm.length / result.sampleRate;
-    const meta = await createSession({ sourceText: trimmed, audio: blob, durationSec });
-    setActiveSessionId(meta.id);
+    const meta = doc.id
+      ? await updateSession(doc.id, { sourceText: trimmed, audio: blob, durationSec, voice })
+      : await createSession({ sourceText: trimmed, audio: blob, durationSec, voice });
+    const url = URL.createObjectURL(blob);
+    setDoc((prev) => {
+      if (prev.audioUrl) URL.revokeObjectURL(prev.audioUrl);
+      return {
+        id: meta.id,
+        sourceText: trimmed,
+        savedText: trimmed,
+        audioUrl: url,
+        audioVoice: voice,
+      };
+    });
+    setPlayToken((t) => t + 1);
     await refreshLibrary();
     setStatus({ kind: "ready", device: deviceRef.current });
   }
 
-  async function onPlaySession(id: string): Promise<void> {
+  async function loadSession(id: string): Promise<void> {
+    dismissReadyStamp();
     const blob = await getAudioBlob(id);
-    setAudioForBlob(blob);
-    setActiveSessionId(id);
-    const session = library.find((s) => s.id === id);
-    if (session) setText(session.sourceText);
+    const url = URL.createObjectURL(blob);
+    const session = (await listSessions()).find((s) => s.id === id);
+    setDoc((prev) => {
+      if (prev.audioUrl) URL.revokeObjectURL(prev.audioUrl);
+      const sourceText = session?.sourceText ?? "";
+      return {
+        id,
+        sourceText,
+        savedText: sourceText,
+        audioUrl: url,
+        audioVoice: session?.voice ?? null,
+      };
+    });
+    setView("reader");
+  }
+
+  function startNewDocument(): void {
+    setDoc((prev) => {
+      if (prev.audioUrl) URL.revokeObjectURL(prev.audioUrl);
+      return EMPTY_DOC;
+    });
+  }
+
+  function onOpenSession(id: string): void {
+    if (id === doc.id) return;
+    if (modified) {
+      setPendingNav({ kind: "open", id });
+      return;
+    }
+    void loadSession(id);
+  }
+
+  function onNewDocument(): void {
+    if (!modified && doc.sourceText.length === 0 && !doc.id) return;
+    if (modified) {
+      setPendingNav({ kind: "new" });
+      return;
+    }
+    startNewDocument();
+  }
+
+  function onRevert(): void {
+    setDoc((prev) => ({ ...prev, sourceText: prev.savedText }));
   }
 
   async function onDeleteSession(id: string): Promise<void> {
     await deleteSession(id);
-    if (id === activeSessionId) {
-      setActiveSessionId(null);
-      setAudioUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return null;
+    if (id === doc.id) {
+      setDoc((prev) => {
+        if (prev.audioUrl) URL.revokeObjectURL(prev.audioUrl);
+        return EMPTY_DOC;
       });
     }
     await refreshLibrary();
   }
 
-  return (
-    <main className="app">
-      <header className="hero">
-        <h1 className="hero__title">catm</h1>
-        <p className="hero__sub">Long-form text-to-speech, in your browser.</p>
-      </header>
-
-      <section className="panel" aria-label="Synthesiser">
-        <label className="panel__label" htmlFor="input">
-          Text
-        </label>
-        <textarea
-          id="input"
-          className="panel__textarea"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={6}
-          placeholder="Type something to read aloud."
-          spellCheck={false}
-        />
-        <div className="panel__row">
-          <button
-            type="button"
-            className="panel__speak"
-            onClick={onSpeak}
-            disabled={!canSpeak}
-            data-testid="speak"
-          >
-            {status.kind === "synthesising" ? "Synthesising…" : "Speak"}
-          </button>
-          <StatusLine status={status} />
-        </div>
-        {/* biome-ignore lint/a11y/useMediaCaption: synthesised speech has no separate transcript channel */}
-        <audio
-          className="panel__audio"
-          src={audioUrl ?? undefined}
-          controls
-          autoPlay
-          data-testid="audio"
-        />
-      </section>
-
-      <Library
-        sessions={library}
-        activeId={activeSessionId}
-        onPlay={onPlaySession}
-        onDelete={onDeleteSession}
-      />
-    </main>
-  );
-}
-
-function StatusLine({ status }: { status: Status }): React.JSX.Element {
-  switch (status.kind) {
-    case "idle":
-      return <span className="status">Initialising…</span>;
-    case "loading":
-      return <span className="status">Loading Kokoro voice…</span>;
-    case "ready":
-      return <span className="status">Ready · {status.device.toUpperCase()}</span>;
-    case "synthesising":
-      return <span className="status">Synthesising…</span>;
-    case "error":
-      return <span className="status status--error">Error: {status.message}</span>;
+  async function onDeleteModel(): Promise<void> {
+    // Tear down the worker and clear cached voice files. The browser HTTP cache
+    // still holds the ONNX bytes — redownload will be fast — but the onboarding
+    // flow re-runs because we drop the onboarded flag.
+    workerRef.current?.terminate();
+    workerRef.current = null;
+    progressMapRef.current.clear();
+    pendingSynthRef.current.clear();
+    try {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter((k) => k.includes("kokoro") || k.includes("transformers") || k.includes("hf"))
+          .map((k) => caches.delete(k)),
+      );
+    } catch {
+      /* ignore cache errors */
+    }
+    try {
+      localStorage.removeItem(ONBOARDED_KEY);
+    } catch {
+      /* ignore */
+    }
+    setOnboarded(false);
+    setStatus({ kind: "first-launch" });
+    setDoc((prev) => {
+      if (prev.audioUrl) URL.revokeObjectURL(prev.audioUrl);
+      return EMPTY_DOC;
+    });
+    setView("reader");
+    setConfirmDelete(false);
   }
-}
 
-interface LibraryProps {
-  sessions: SessionMeta[];
-  activeId: string | null;
-  onPlay: (id: string) => void;
-  onDelete: (id: string) => void;
-}
+  async function onClearAllSessions(): Promise<void> {
+    for (const s of sessions) {
+      await deleteSession(s.id);
+    }
+    setDoc((prev) => {
+      if (prev.audioUrl) URL.revokeObjectURL(prev.audioUrl);
+      return EMPTY_DOC;
+    });
+    await refreshLibrary();
+  }
 
-function Library({ sessions, activeId, onPlay, onDelete }: LibraryProps): React.JSX.Element {
+  function resolveDiscardDialog(action: "cancel" | "discard" | "save"): void {
+    const nav = pendingNav;
+    if (!nav) return;
+    if (action === "cancel") {
+      setPendingNav(null);
+      return;
+    }
+    if (action === "discard") {
+      if (nav.kind === "new") startNewDocument();
+      else void loadSession(nav.id);
+      setPendingNav(null);
+      return;
+    }
+    void (async () => {
+      await onRead();
+      if (nav.kind === "new") startNewDocument();
+      else await loadSession(nav.id);
+      setPendingNav(null);
+    })();
+  }
+
+  const isOnboarding =
+    !onboarded &&
+    (status.kind === "first-launch" || status.kind === "downloading" || status.kind === "loading");
+
+  const straplineRight =
+    status.kind === "first-launch" ? (
+      <>
+        <b>First time</b> · voice not yet on this device
+      </>
+    ) : status.kind === "downloading" ? (
+      <>
+        <b>Downloading</b> · {Math.round(status.fraction * 100)}% · {status.loadedMb.toFixed(1)} /{" "}
+        {status.totalMb.toFixed(0)} mb
+      </>
+    ) : status.kind === "loading" ? (
+      <>
+        <b>Loading</b> · Kokoro voice
+      </>
+    ) : status.kind === "error" ? (
+      <>
+        <b>Error</b> · {status.message}
+      </>
+    ) : view === "settings" ? (
+      <>
+        <b>Settings</b> · voice · storage · about
+      </>
+    ) : doc.sourceText.length > 0 ? (
+      <>
+        <b>{doc.sourceText.trim().split(/\s+/).filter(Boolean).length.toLocaleString()}</b> words ·
+        {modified ? " modified" : doc.id ? " saved" : " new"}
+      </>
+    ) : (
+      <>
+        <b>Ready</b> · paste something to read
+      </>
+    );
+
+  const currentTitle = doc.id
+    ? (sessions.find((s) => s.id === doc.id)?.title ?? "Untitled")
+    : "Untitled draft";
+  const targetTitle =
+    pendingNav?.kind === "open"
+      ? (sessions.find((s) => s.id === pendingNav.id)?.title ?? "another read")
+      : "a new document";
+
   return (
-    <section className="library" aria-label="Library">
-      <header className="library__header">
-        <h2 className="library__title">Library</h2>
-        <span className="library__count" data-testid="library-count">
-          {sessions.length} {sessions.length === 1 ? "session" : "sessions"}
-        </span>
-      </header>
-      {sessions.length === 0 ? (
-        <p className="library__empty" data-testid="library-empty">
-          Nothing here yet. Synthesise something above and it will appear here.
-        </p>
+    <div className="page">
+      <Masthead
+        view={view}
+        status={status}
+        straplineRight={straplineRight}
+        onOpenSettings={() => setView("settings")}
+        onCloseSettings={() => setView("reader")}
+      />
+
+      {isOnboarding ? (
+        <OnboardingView status={status} onStartDownload={onStartDownload} />
+      ) : view === "reader" ? (
+        <ReaderView
+          status={status}
+          doc={doc}
+          modified={modified}
+          speed={speed}
+          sessions={sessions}
+          shouldPlayToken={playToken}
+          showReadyStamp={showReadyStamp && doc.sourceText.length === 0 && !doc.id}
+          onTextChange={(t) => {
+            dismissReadyStamp();
+            setDoc((d) => ({ ...d, sourceText: t }));
+          }}
+          onSpeedChange={setSpeed}
+          onRead={onRead}
+          onNewDocument={onNewDocument}
+          onRevert={onRevert}
+          onOpenSession={onOpenSession}
+          onDeleteSession={onDeleteSession}
+        />
       ) : (
-        <ul className="library__list" data-testid="library-list">
-          {sessions.map((s) => (
-            <li
-              key={s.id}
-              className={`library__row${s.id === activeId ? " library__row--active" : ""}`}
-              data-testid="library-row"
-            >
-              <button
-                type="button"
-                className="library__row-body"
-                onClick={() => onPlay(s.id)}
-                data-testid="library-play"
-              >
-                <span className="library__row-title">{s.title}</span>
-                <span className="library__row-meta">
-                  {formatDate(s.createdAt)} · {formatDuration(s.durationSec)}
-                </span>
-              </button>
-              <button
-                type="button"
-                className="library__row-delete"
-                onClick={() => onDelete(s.id)}
-                aria-label={`Delete ${s.title}`}
-                data-testid="library-delete"
-              >
-                ✕
-              </button>
-            </li>
-          ))}
-        </ul>
+        <SettingsView
+          library={sessions}
+          voice={voice}
+          previewVoice={previewVoice}
+          status={status}
+          onChangeVoice={onChangeVoice}
+          onPreviewVoice={(v) => void onPreviewVoice(v)}
+          onClearSessions={onClearAllSessions}
+          onDeleteModel={() => setConfirmDelete(true)}
+          onBack={() => setView("reader")}
+        />
       )}
-    </section>
+
+      {confirmDelete ? (
+        <ConfirmDialog
+          title={
+            <>
+              Delete <em>Kokoro</em>?
+            </>
+          }
+          body={
+            <>
+              The voice will be removed from this device. You'll have to download it again before
+              your next read — about 80 mb. Your saved sessions stay where they are.
+            </>
+          }
+          confirmLabel="Delete model"
+          tone="danger"
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={() => void onDeleteModel()}
+          testId="confirm-delete-model"
+        />
+      ) : null}
+
+      {pendingNav ? (
+        <DiscardDialog
+          currentTitle={currentTitle}
+          targetTitle={targetTitle}
+          onCancel={() => resolveDiscardDialog("cancel")}
+          onDiscard={() => resolveDiscardDialog("discard")}
+          onSaveAndOpen={() => resolveDiscardDialog("save")}
+        />
+      ) : null}
+
+      <Colophon />
+    </div>
   );
-}
-
-function formatDate(ms: number): string {
-  return new Date(ms).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function formatDuration(seconds: number): string {
-  const total = Math.max(0, Math.round(seconds));
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
 }

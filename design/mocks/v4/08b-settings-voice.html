@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>catm — settings · voice (consolidated)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&family=Archivo:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shell.css">
+<style>
+  /* Consolidated Voice section primitives — extend shell.css */
+
+  /* Tier picker — stacked rows. Selected tier expands into the canonical
+     "what's installed" card. Other tiers stay slim "coming soon" rows. */
+  .tier-picker{
+    display:flex;flex-direction:column;gap:10px;
+  }
+  .tier-row{
+    background:var(--paper);border:2px solid var(--ink);position:relative;
+    display:flex;flex-direction:column;cursor:pointer;
+  }
+  .tier-row.on{
+    background:var(--pink);color:var(--paper);box-shadow:4px 4px 0 var(--ink);
+  }
+  .tier-row.on::after{
+    content:"SELECTED";position:absolute;top:-9px;right:10px;
+    background:var(--ink);color:var(--paper);
+    font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.2em;padding:3px 9px;
+  }
+  .tier-row.disabled{opacity:.55;cursor:not-allowed}
+
+  .tier-row .head{
+    display:flex;justify-content:space-between;align-items:flex-end;gap:14px;
+    padding:14px 20px;
+  }
+  .tier-row .head .left{display:flex;align-items:baseline;gap:14px;min-width:0}
+  .tier-row .head .nm{
+    font-family:'Archivo Black',sans-serif;font-size:28px;letter-spacing:-.03em;line-height:.95;
+    text-transform:uppercase;
+  }
+  .tier-row .head .model{
+    font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.16em;
+    text-transform:uppercase;opacity:.78;
+  }
+  .tier-row .head .blurb{
+    font-family:'Archivo',sans-serif;font-style:italic;font-size:13px;line-height:1.4;
+    opacity:.9;flex:1;min-width:0;text-align:right;
+  }
+  .tier-row.on .head .blurb{opacity:.95}
+
+  .tier-row.expanded .body{
+    padding:0 20px 16px;
+    display:grid;grid-template-columns:repeat(4,1fr);gap:14px;
+    border-top:1.5px dashed currentColor;margin-top:0;padding-top:14px;
+  }
+  @media (max-width:680px){.tier-row.expanded .body{grid-template-columns:repeat(2,1fr)}}
+  .tier-row .res{
+    font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.16em;
+    text-transform:uppercase;display:flex;flex-direction:column;gap:2px;
+  }
+  .tier-row .res b{
+    font-family:'Archivo Black',sans-serif;font-size:18px;letter-spacing:-.02em;line-height:1;
+    text-transform:none;
+  }
+  .tier-row.on .res b{color:var(--paper)}
+  .tier-row .res-extra{
+    font-size:8.5px;letter-spacing:.14em;opacity:.7;margin-top:2px;
+  }
+
+  /* ✕ on the selected tier row */
+  .tier-row.on .tier-delete{
+    position:absolute;top:-10px;right:-10px;
+    width:28px;height:28px;
+    border:2px solid var(--ink);background:var(--paper);color:var(--ink);
+    box-shadow:2px 2px 0 var(--ink);
+    font-family:'Space Mono',monospace;font-size:12px;font-weight:700;
+    display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
+  }
+  .tier-row.on .tier-delete:hover{background:var(--ink);color:var(--pink)}
+
+  /* Side-by-side: tier picker (left) + voice picker (right) */
+  .voice-stage{
+    display:grid;grid-template-columns:1.1fr 1fr;gap:18px;align-items:start;
+  }
+  @media (max-width:780px){.voice-stage{grid-template-columns:1fr}}
+
+  /* Voice picker — selectable chips with preview */
+  .voice-picker{
+    background:var(--paper);border:2px solid var(--ink);
+    padding:14px 16px;position:relative;
+  }
+  .voice-picker .label{
+    font-family:'Archivo Black',sans-serif;font-size:12px;letter-spacing:.04em;
+    text-transform:uppercase;opacity:.9;margin-bottom:12px;
+    border-bottom:1.5px dashed var(--ink);padding-bottom:8px;
+    display:flex;justify-content:space-between;align-items:baseline;
+  }
+  .voice-picker .label .sub{
+    font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.18em;
+    opacity:.65;font-weight:400;
+  }
+  .voice-grid{
+    display:flex;flex-direction:column;gap:8px;
+  }
+  .voice-chip{
+    display:flex;align-items:center;gap:10px;
+    background:var(--paper);border:2px solid var(--ink);
+    padding:10px 12px;cursor:pointer;
+    position:relative;
+  }
+  .voice-chip:hover{background:var(--paper-2)}
+  .voice-chip.on{background:var(--pink-soft);box-shadow:2px 2px 0 var(--pink)}
+  .voice-chip .pick{
+    width:18px;height:18px;border:2px solid var(--ink);background:var(--paper);
+    border-radius:50%;flex:none;position:relative;
+  }
+  .voice-chip.on .pick::after{
+    content:"";position:absolute;inset:3px;background:var(--ink);border-radius:50%;
+  }
+  .voice-chip .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .voice-chip .nm{
+    font-family:'Archivo Black',sans-serif;font-size:13px;letter-spacing:-.01em;text-transform:lowercase;
+  }
+  .voice-chip .nm em{font-style:normal;color:var(--pink-bright)}
+  .voice-chip .desc{
+    font-family:'Space Mono',monospace;font-size:9.5px;letter-spacing:.14em;
+    text-transform:uppercase;opacity:.7;
+  }
+  .voice-chip .preview{
+    background:var(--paper);border:1.5px solid var(--ink);
+    width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;
+    cursor:pointer;flex:none;font-size:11px;
+    transition:transform .06s, box-shadow .06s;
+  }
+  .voice-chip .preview:hover{background:var(--ink);color:var(--paper)}
+  .voice-chip .preview.playing{background:var(--pink);color:var(--paper);border-color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="masthead">
+    <div class="vol">Vol. <b>01</b> Issue 08 · MMXXVI</div>
+    <div class="brand"><h1 class="wordmark">catm.</h1><div class="tagline">come and talk to me</div></div>
+    <div class="price">
+      Cover <b>$0.00</b> Free · MIT
+      <a href="08b-settings-voice.html" class="gear on" aria-label="Settings" title="Settings">⚙</a>
+    </div>
+  </header>
+  <div class="strapline">
+    <span>★ ★ ★ <b>READ ANYTHING.</b> OUT LOUD. ★ ★ ★</span>
+    <span><b>Settings</b> · voice · storage · about</span>
+  </div>
+
+  <nav class="screen-nav">
+    <span class="lbl">screens →</span>
+    <a href="01-first-launch.html">01 first launch</a>
+    <a href="02-downloading.html">02 downloading</a>
+    <a href="03-ready-empty.html">03 ready</a>
+    <a href="04-editor-document.html">04 document</a>
+    <a href="05-editor-modified.html">05 modified</a>
+    <a href="06-editor-synthesising.html">06 reading</a>
+    <a href="07-discard-dialog.html">07 discard</a>
+    <a href="08-settings.html">08 settings</a>
+    <a href="08b-settings-voice.html" class="on">08b voice (new)</a>
+  </nav>
+
+  <a href="04-editor-document.html" class="back-link">← back to editor</a>
+
+  <section class="slab">
+    <div class="settings-stack">
+
+      <!-- ─── CONSOLIDATED VOICE SECTION ─── -->
+      <section class="section" aria-label="Voice">
+        <div class="section-head">
+          <h3>Voice</h3>
+          <span class="sub">kokoro · low tier · installed</span>
+        </div>
+
+        <div class="voice-stage">
+
+        <!-- Tier picker — selected tier (Low = Kokoro) is the canonical model card -->
+        <div class="tier-picker" role="radiogroup" aria-label="Model tier">
+
+          <div class="tier-row on expanded" role="radio" aria-checked="true">
+            <button type="button" class="tier-delete" aria-label="Delete Kokoro" title="Delete model">✕</button>
+            <div class="head">
+              <div class="left">
+                <span class="nm">Low</span>
+                <span class="model">Kokoro · 82M · Apache-2.0</span>
+              </div>
+              <div class="blurb">Good — clearly synthetic but pleasant. Long-listen friendly.</div>
+            </div>
+            <div class="body">
+              <div class="res">Disk<b>80 mb</b><span class="res-extra">one-time</span></div>
+              <div class="res">Ram<b>~600 mb</b><span class="res-extra">during synthesis</span></div>
+              <div class="res">Speed<b>1.25×</b><span class="res-extra">default</span></div>
+              <div class="res">Voices<b>4</b><span class="res-extra">english</span></div>
+            </div>
+          </div>
+
+          <div class="tier-row disabled" role="radio" aria-checked="false" aria-disabled="true">
+            <div class="head">
+              <div class="left">
+                <span class="nm">Medium</span>
+                <span class="model">Coming soon</span>
+              </div>
+              <div class="blurb">Better — closer to a human narrator. Needs a modern device.</div>
+            </div>
+          </div>
+
+          <div class="tier-row disabled" role="radio" aria-checked="false" aria-disabled="true">
+            <div class="head">
+              <div class="left">
+                <span class="nm">High</span>
+                <span class="model">Coming soon</span>
+              </div>
+              <div class="blurb">Best — near-human, expressive. High-end devices only.</div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Voice picker — selectable chips with preview -->
+        <div class="voice-picker">
+          <div class="label">
+            <span>Voices</span>
+            <span class="sub">bundled · 4 · english</span>
+          </div>
+          <div class="voice-grid" role="radiogroup" aria-label="Default voice">
+            <div class="voice-chip on" role="radio" aria-checked="true">
+              <span class="pick" aria-hidden="true"></span>
+              <div class="body">
+                <span class="nm">af_<em>heart</em></span>
+                <span class="desc">feminine · warm</span>
+              </div>
+              <button class="preview playing" type="button" aria-label="Preview af_heart" title="Preview">❚❚</button>
+            </div>
+            <div class="voice-chip" role="radio" aria-checked="false">
+              <span class="pick" aria-hidden="true"></span>
+              <div class="body">
+                <span class="nm">af_<em>bella</em></span>
+                <span class="desc">feminine · bright</span>
+              </div>
+              <button class="preview" type="button" aria-label="Preview af_bella" title="Preview">▶</button>
+            </div>
+            <div class="voice-chip" role="radio" aria-checked="false">
+              <span class="pick" aria-hidden="true"></span>
+              <div class="body">
+                <span class="nm">am_<em>michael</em></span>
+                <span class="desc">masculine · neutral</span>
+              </div>
+              <button class="preview" type="button" aria-label="Preview am_michael" title="Preview">▶</button>
+            </div>
+            <div class="voice-chip" role="radio" aria-checked="false">
+              <span class="pick" aria-hidden="true"></span>
+              <div class="body">
+                <span class="nm">am_<em>eric</em></span>
+                <span class="desc">masculine · dry</span>
+              </div>
+              <button class="preview" type="button" aria-label="Preview am_eric" title="Preview">▶</button>
+            </div>
+          </div>
+        </div>
+
+        </div><!-- /.voice-stage -->
+
+        <p style="margin-top:14px;font-family:'Archivo',sans-serif;font-style:italic;font-size:12.5px;line-height:1.5;opacity:.7;position:relative;z-index:1">
+          Changing the voice marks open documents as <span style="color:var(--pink-bright);font-weight:600">● unsaved</span> —
+          the audio you already saved keeps the old voice until you press <b>Save &amp; read</b>.
+        </p>
+      </section>
+
+      <!-- Storage section unchanged -->
+      <section class="section" aria-label="Storage">
+        <div class="section-head">
+          <h3>Storage</h3>
+          <span class="sub">everything on your device</span>
+        </div>
+        <div class="storage-row">
+          <div class="storage-card">
+            <div class="total">287 mb<small>used · of ~500 mb soft budget</small></div>
+            <div class="vis">
+              <div class="seg-voice" style="width:16%"></div>
+              <div class="seg-sessions" style="left:16%;width:41%"></div>
+            </div>
+            <div class="legend">
+              <span><i class="i-voice"></i> model · 80 mb</span>
+              <span><i class="i-sessions"></i> sessions · 207 mb · 14 reads</span>
+              <span><i class="i-free"></i> free · 213 mb</span>
+            </div>
+          </div>
+          <div class="storage-actions">
+            <h5>Clean up</h5>
+            <div class="a-row">
+              <p>Remove sessions older than 30 days that you finished listening to.</p>
+              <button class="btn-small" disabled>Sweep (soon)</button>
+            </div>
+            <div class="a-row">
+              <p>Delete every saved session. The voice stays installed.</p>
+              <button class="btn-small danger">Clear sessions</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- About unchanged -->
+      <section class="section" aria-label="About">
+        <div class="section-head">
+          <h3>About</h3>
+          <span class="sub">catm v0.1 · MMXXVI</span>
+        </div>
+        <div class="about-row">
+          <div class="about-card">
+            <b>Version</b>
+            <div class="v">0.1.0-dev</div>
+          </div>
+          <div class="about-card">
+            <b>License</b>
+            <div class="v">MIT · open source</div>
+          </div>
+          <div class="about-card">
+            <b>Source</b>
+            <div class="v"><a href="#">github.com/catm-app</a></div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </section>
+
+  <footer class="colophon">
+    <a href="https://github.com/catm-app"><span class="arrow">↗</span>source · github.com/catm-app</a>
+    <span class="meta">printed in your browser · mmxxvi</span>
+  </footer>
+
+</div>
+</body>
+</html>

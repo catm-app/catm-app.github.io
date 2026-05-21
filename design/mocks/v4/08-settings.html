@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>catm — settings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&family=Archivo:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shell.css">
+<style>
+  .back-link{
+    margin-top:24px;
+    display:inline-flex;align-items:center;gap:8px;
+    font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--ink);text-decoration:none;
+    border:1.5px solid var(--ink);padding:6px 10px;background:var(--paper);
+  }
+  .back-link:hover{background:var(--ink);color:var(--paper)}
+  .voice-card{background:var(--paper);border:2px solid var(--ink);padding:16px 18px}
+  .voice-card .v-name{font-family:'Archivo Black',sans-serif;font-size:22px;letter-spacing:-.02em;color:var(--ink)}
+  .voice-card .v-meta{margin-top:6px;font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink);opacity:.7}
+  .voice-card .row{
+    display:flex;justify-content:space-between;
+    border-top:1px dashed var(--ink);padding:6px 0;
+    font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.06em;
+  }
+  .voice-card .row:first-of-type{margin-top:12px}
+  .voice-card .row b{font-family:'Archivo Black',sans-serif;font-size:11px;letter-spacing:.02em;text-transform:uppercase}
+  .voice-card .row .v{color:var(--pink);font-weight:700}
+  .voice-row{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start;position:relative;z-index:1}
+  @media (max-width:680px){.voice-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="masthead">
+    <div class="vol">Vol. <b>01</b> Issue 08 · MMXXVI</div>
+    <div class="brand"><h1 class="wordmark">catm.</h1><div class="tagline">come and talk to me</div></div>
+    <div class="price">
+      Cover <b>$0.00</b> Free · MIT
+      <a href="08-settings.html" class="gear on" aria-label="Settings" title="Settings">⚙</a>
+    </div>
+  </header>
+  <div class="strapline">
+    <span>★ ★ ★ <b>READ ANYTHING.</b> OUT LOUD. ★ ★ ★</span>
+    <span><b>Settings</b> · voice · storage · about</span>
+  </div>
+
+  <nav class="screen-nav">
+    <span class="lbl">screens →</span>
+    <a href="01-first-launch.html">01 first launch</a>
+    <a href="02-downloading.html">02 downloading</a>
+    <a href="03-ready-empty.html">03 ready</a>
+    <a href="04-editor-document.html">04 document</a>
+    <a href="05-editor-modified.html">05 modified</a>
+    <a href="06-editor-synthesising.html">06 reading</a>
+    <a href="07-discard-dialog.html">07 discard</a>
+    <a href="08-settings.html" class="on">08 settings</a>
+  </nav>
+
+  <a href="04-editor-document.html" class="back-link">← back to editor</a>
+
+  <section class="slab">
+    <div class="settings-stack">
+
+      <section class="section" aria-label="Model tier">
+        <div class="section-head">
+          <h3>Model Tier</h3>
+          <span class="sub">pick a voice — bigger = better but slower</span>
+        </div>
+        <div class="tier-grid">
+          <div class="tier-card on">
+            <div class="name">Low<span class="model">Kokoro · 82M</span></div>
+            <div class="desc">Good — clearly synthetic but pleasant. Suitable for long listens.</div>
+            <div class="resources">
+              <div class="res"><b>80</b><span class="unit">mb · disk</span></div>
+              <div class="res"><b>~600</b><span class="unit">mb · ram</span></div>
+            </div>
+          </div>
+          <div class="tier-card disabled">
+            <div class="name">Medium<span class="model">Coming soon</span></div>
+            <div class="desc">Better — closer to a human narrator.</div>
+            <div class="resources">
+              <div class="res"><b>~500</b><span class="unit">mb · disk</span></div>
+              <div class="res"><b>~2</b><span class="unit">gb · ram</span></div>
+            </div>
+          </div>
+          <div class="tier-card disabled">
+            <div class="name">High<span class="model">Coming soon</span></div>
+            <div class="desc">Best — near-human, expressive.</div>
+            <div class="resources">
+              <div class="res"><b>~700</b><span class="unit">mb · disk</span></div>
+              <div class="res"><b>~3</b><span class="unit">gb · ram</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-label="Active model">
+        <div class="section-head">
+          <h3>Active Model &amp; Voice</h3>
+          <span class="sub">kokoro · low tier · installed</span>
+        </div>
+        <div class="voice-row">
+          <div class="voice-card">
+            <div class="v-name">Kokoro <span style="font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.16em;opacity:.6;font-weight:400;text-transform:uppercase">· 82M params</span></div>
+            <div class="v-meta">★ Low tier · English · installed today</div>
+            <div class="row"><b>Tier</b><span class="v">Low</span></div>
+            <div class="row"><b>Disk</b><span class="v">80 mb</span></div>
+            <div class="row"><b>Ram (synthesis)</b><span class="v">~600 mb</span></div>
+            <div class="row"><b>Default speed</b><span class="v">1.25×</span></div>
+          </div>
+          <div class="voice-card">
+            <div class="v-name" style="font-size:16px;opacity:.85">Voices <span style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.16em;opacity:.6;font-weight:400;text-transform:uppercase">· bundled with kokoro</span></div>
+            <div class="v-meta">all four arrive with the model · english only in v1</div>
+            <div class="row" style="margin-top:12px"><b>af_heart</b><span class="v">selected · feminine, warm</span></div>
+            <div class="row"><b>af_bella</b><span>feminine, bright</span></div>
+            <div class="row"><b>am_michael</b><span>masculine, neutral</span></div>
+            <div class="row"><b>am_eric</b><span>masculine, dry</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-label="Storage">
+        <div class="section-head">
+          <h3>Storage</h3>
+          <span class="sub">everything on your device</span>
+        </div>
+        <div class="storage-row">
+          <div class="storage-card">
+            <div class="total">287 mb<small>used · of ~500 mb soft budget</small></div>
+            <div class="vis">
+              <div class="seg-voice" style="width:16%"></div>
+              <div class="seg-sessions" style="left:16%;width:41%"></div>
+            </div>
+            <div class="legend">
+              <span><i class="i-voice"></i> model · 80 mb</span>
+              <span><i class="i-sessions"></i> sessions · 207 mb · 14 reads</span>
+              <span><i class="i-free"></i> free · 213 mb</span>
+            </div>
+          </div>
+          <div class="storage-actions">
+            <h5>Clean up</h5>
+            <div class="a-row">
+              <p>Remove sessions older than 30 days that you finished listening to.</p>
+              <button class="btn-small" disabled>Sweep (soon)</button>
+            </div>
+            <div class="a-row">
+              <p>Delete every saved session. The voice stays installed.</p>
+              <button class="btn-small danger">Clear sessions</button>
+            </div>
+            <div class="a-row">
+              <p>Remove the model. You'll have to download it again to read.</p>
+              <button class="btn-small danger" disabled>Delete model (soon)</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-label="About">
+        <div class="section-head">
+          <h3>About</h3>
+          <span class="sub">catm v0.1 · MMXXVI</span>
+        </div>
+        <div class="about-row">
+          <div class="about-card">
+            <b>Version</b>
+            <div class="v">0.1.0-dev</div>
+          </div>
+          <div class="about-card">
+            <b>License</b>
+            <div class="v">MIT · open source</div>
+          </div>
+          <div class="about-card">
+            <b>Source</b>
+            <div class="v"><a href="#">github.com/catm-app</a></div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </section>
+
+  <footer class="colophon">
+    <a href="https://github.com/catm-app"><span class="arrow">↗</span>source · github.com/catm-app</a>
+    <span class="meta">printed in your browser · mmxxvi</span>
+  </footer>
+
+</div>
+</body>
+</html>

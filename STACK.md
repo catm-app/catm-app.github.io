@@ -53,7 +53,7 @@ A mature, widely-known choice. Familiar to most engineers, low onboarding cost f
 
 ### Styling — plain CSS plus CSS variables [decided]
 
-The mocks specify a custom visual identity (risograph palette, custom panels, shadows, halftones). A utility-class CSS framework would conflict with the design rather than support it. `shell.css` in `mocks-v3/` is the reference pattern: CSS variables for the palette, panel primitives, single typographic system.
+The mocks specify a custom visual identity (risograph palette, custom panels, shadows, halftones). A utility-class CSS framework would conflict with the design rather than support it. `shell.css` in `design/mocks/v4/` is the reference pattern: CSS variables for the palette, panel primitives, single typographic system.
 
 Each React component carries a colocated CSS module (`Foo.module.css`) for scoped styles. Shared design tokens are defined in a single `app.css` imported at the root.
 
@@ -220,9 +220,12 @@ catm/
 ├─ PRD.md
 ├─ RESEARCH.md
 ├─ STACK.md
-├─ mocks/                    # round-1 design explorations
-├─ mocks-v2/                 # round-2
-├─ mocks-v3/                 # round-3 (current direction)
+├─ design/                   # visual design language
+│  └─ mocks/                 # versioned mock iterations
+│     ├─ v1/                 # round-1 explorations
+│     ├─ v2/                 # round-2
+│     ├─ v3/                 # round-3
+│     └─ v4/                 # round-4 (current direction)
 ├─ src/
 │  ├─ app.css                # shared design tokens
 │  ├─ main.tsx               # PWA entry
