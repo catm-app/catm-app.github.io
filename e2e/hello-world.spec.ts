@@ -202,8 +202,8 @@ test("removing the voice model returns to first-launch onboarding", async ({ pag
 
   // Open the Model popover from the rail-foot, then trigger its trashcan.
   await page.getByTestId("rail-model").click();
-  await page.getByTestId("tier-remove-low").click();
-  await expect(page.getByTestId("confirm-delete-model")).toBeVisible();
+  await page.getByTestId("tier-remove-basic").click();
+  await expect(page.getByTestId("confirm-remove-basic")).toBeVisible();
   await page.getByTestId("confirm-confirm").click();
 
   // Confirmed removal drops the onboarded flag and resets to first-launch.

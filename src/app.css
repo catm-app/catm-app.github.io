@@ -1765,3 +1765,291 @@ textarea {
 .error-banner b {
   font-weight: 700;
 }
+
+/* ── ModelChip — toolbar pill with tier dot + mini menu ──── */
+.pill.model .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  flex: none;
+}
+.pill.model.is-pro .dot {
+  background: #8a5cf6;
+  box-shadow: 0 0 0 3px rgba(138, 92, 246, 0.18);
+}
+.pill.model .dot.spinning {
+  background: transparent;
+  border: 2px solid var(--accent-soft);
+  border-top-color: var(--accent);
+  box-shadow: none;
+  animation: chip-spin 0.9s linear infinite;
+  width: 9px;
+  height: 9px;
+}
+.pill.model.is-pro .dot.spinning {
+  border-color: rgba(138, 92, 246, 0.18);
+  border-top-color: #8a5cf6;
+}
+@keyframes chip-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.pill .frac-inline {
+  color: var(--ink-3);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  margin-left: 4px;
+}
+
+.pop-mini {
+  position: absolute;
+  left: 0;
+  /* Open upward — the toolbar sits at the bottom of the composer, so a
+     downward popover gets clipped by the viewport. Mirrors the VoiceChip
+     `.pop.voice` positioning. */
+  bottom: calc(100% + 6px);
+  top: auto;
+  background: var(--bg-1);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 6px;
+  box-shadow: 0 12px 32px rgba(13, 14, 18, 0.1);
+  min-width: 240px;
+  z-index: 25;
+}
+.pop-mini-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 9px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--ink-1);
+  text-align: left;
+}
+.pop-mini-row:hover {
+  background: var(--bg-2);
+}
+.pop-mini-row.on {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.pop-mini-row .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+.pop-mini-row.is-pro .dot {
+  background: #8a5cf6;
+}
+.pop-mini-row .label {
+  flex: none;
+}
+.pop-mini-row .meta {
+  color: var(--ink-3);
+  font-size: 11.5px;
+  font-weight: 500;
+  margin-left: auto;
+}
+.pop-mini-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 4px;
+}
+.pop-mini-manage {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 9px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--ink-2);
+  font-weight: 500;
+  text-align: left;
+}
+.pop-mini-manage:hover {
+  background: var(--bg-2);
+  color: var(--ink-0);
+}
+
+/* ── ModelManager — per-tier download/delete cards ──────── */
+.pop-model-manager .tier-card {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pop-model-manager .tier-card:last-of-type {
+  border-bottom: none;
+}
+.pop-model-manager .tier-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13.5px;
+}
+.pop-model-manager .tier-head .label {
+  font-weight: 700;
+  color: var(--ink-0);
+  letter-spacing: -0.01em;
+}
+.pop-model-manager .tier-head .family {
+  color: var(--ink-2);
+  font-weight: 500;
+}
+.pop-model-manager .tier-head .size {
+  margin-left: auto;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+.pop-model-manager .tier-head .badge-pro {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: white;
+  background: linear-gradient(135deg, #8a5cf6, #c372ff);
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+.pop-model-manager .tier-meta {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  line-height: 1.45;
+}
+.pop-model-manager .tier-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+}
+.pop-model-manager .tier-status .state {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.pop-model-manager .state.ready {
+  color: var(--good);
+}
+.pop-model-manager .state.ready::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--good);
+}
+.pop-model-manager .state.downloading {
+  color: var(--accent-ink);
+}
+.pop-model-manager .state.downloading::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid var(--accent-soft);
+  border-top-color: var(--accent);
+  animation: chip-spin 0.9s linear infinite;
+}
+.pop-model-manager .state.idle {
+  color: var(--ink-3);
+}
+.pop-model-manager .state.idle::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  opacity: 0.5;
+}
+.pop-model-manager .state.error {
+  color: var(--danger);
+}
+.pop-model-manager .tier-status .frac {
+  margin-left: auto;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--ink-2);
+  font-weight: 500;
+}
+.pop-model-manager .progress {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--bg-2);
+  overflow: hidden;
+  position: relative;
+}
+.pop-model-manager .progress > i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, var(--accent), #8a98ff);
+  border-radius: 999px;
+  transition: width 0.2s ease-out;
+}
+.pop-model-manager .tier-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pop-model-manager .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-1);
+  color: var(--ink-1);
+  letter-spacing: -0.005em;
+}
+.pop-model-manager .btn:hover:not(:disabled) {
+  border-color: var(--ink-3);
+}
+.pop-model-manager .btn.primary {
+  background: var(--ink-0);
+  color: white;
+  border-color: var(--ink-0);
+}
+.pop-model-manager .btn.primary:hover:not(:disabled) {
+  background: var(--ink-1);
+}
+.pop-model-manager .btn.danger {
+  color: var(--danger);
+  border-color: rgba(196, 74, 74, 0.3);
+  background: var(--bg-1);
+}
+.pop-model-manager .btn.danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+.pop-model-manager .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

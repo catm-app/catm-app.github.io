@@ -263,7 +263,7 @@ async function synthesizePcm(text: string, voice: VoiceId): Promise<Float32Array
 }
 
 // ─── worker protocol wiring ─────────────────────────────────────────────────
-const handlers = createHandlers({
+const handlers = createHandlers<VoiceId>({
   load: async () => (await load()).info,
   synthesizePcm,
   createEncoder: (sampleRate, onInit, onSegment) =>

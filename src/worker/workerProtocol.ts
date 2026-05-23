@@ -3,10 +3,13 @@
 
 import type { VoiceId } from "./types";
 
-export type InMsg =
+// The voice type is a parameter so each tier can supply its own union (Kokoro
+// has `VoiceId`, Qwen has `QwenVoiceId`). Defaults to Kokoro so existing
+// imports keep their narrowing without modification.
+export type InMsg<V extends string = VoiceId> =
   | { type: "warmup" }
-  | { type: "synth"; id: number; text: string; voice?: VoiceId }
-  | { type: "synth-start"; txnId: number; voice?: VoiceId }
+  | { type: "synth"; id: number; text: string; voice?: V }
+  | { type: "synth-start"; txnId: number; voice?: V }
   | { type: "synth-chunk"; txnId: number; text: string }
   | { type: "synth-end"; txnId: number }
   | { type: "synth-cancel"; txnId: number };
@@ -53,9 +56,9 @@ export interface Encoder {
   finish(): Promise<void>;
 }
 
-export interface WorkerDeps {
+export interface WorkerDeps<V extends string = VoiceId> {
   load: () => Promise<DeviceInfo>;
-  synthesizePcm: (text: string, voice: VoiceId) => Promise<Float32Array>;
+  synthesizePcm: (text: string, voice: V) => Promise<Float32Array>;
   createEncoder: (
     sampleRate: number,
     onInit: (bytes: Uint8Array) => void,
@@ -63,34 +66,38 @@ export interface WorkerDeps {
   ) => Encoder;
   post: (msg: OutMsg, transfer?: Transferable[]) => void;
   sampleRate: number;
-  defaultVoice: VoiceId;
+  defaultVoice: V;
 }
 
-export interface ActiveStream {
+export interface ActiveStream<V extends string = VoiceId> {
   txnId: number;
-  voice: VoiceId;
+  voice: V;
   encoder: Encoder;
   startMs: number;
   audioSec: number;
 }
 
-export interface Handlers {
-  onMessage(msg: InMsg): void;
+export interface Handlers<V extends string = VoiceId> {
+  onMessage(msg: InMsg<V>): void;
   // Exposed for tests: lets a test await all currently queued work without
   // poking workQueue directly.
   drain(): Promise<void>;
 }
 
-export function createHandlers(deps: WorkerDeps): Handlers {
-  let stream: ActiveStream | null = null;
+export function createHandlers<V extends string = VoiceId>(deps: WorkerDeps<V>): Handlers<V> {
+  let stream: ActiveStream<V> | null = null;
   // Cancelled txnIds — subsequent chunk/end messages drop silently.
   const cancelledTxnIds = new Set<number>();
+  // Errored txnIds — once a chunk has failed for this txnId we drop later
+  // chunk/end messages silently to avoid a cascade of "no active synth
+  // stream" errors clobbering the real failure in the UI.
+  const erroredTxnIds = new Set<number>();
   // Serialise async handling: Chrome dispatches the next message while a
   // previous handler is awaiting, which would let a chunk's `await` resume
   // after a later `synth-end` tore down the encoder.
   let workQueue: Promise<unknown> = Promise.resolve();
 
-  function onMessage(msg: InMsg): void {
+  function onMessage(msg: InMsg<V>): void {
     // Cancel must be processed out-of-band — queueing it would defeat the
     // purpose (it'd sit behind every already-posted chunk).
     if (msg.type === "synth-cancel") {
@@ -106,7 +113,7 @@ export function createHandlers(deps: WorkerDeps): Handlers {
     deps.post({ type: "synth-cancelled", txnId });
   }
 
-  async function handle(msg: InMsg): Promise<void> {
+  async function handle(msg: InMsg<V>): Promise<void> {
     try {
       if (msg.type === "warmup") {
         const info = await deps.load();
@@ -125,6 +132,7 @@ export function createHandlers(deps: WorkerDeps): Handlers {
         await deps.load();
         const txnId = msg.txnId;
         cancelledTxnIds.delete(txnId);
+        erroredTxnIds.delete(txnId);
         const voice = msg.voice ?? deps.defaultVoice;
         const encoder = deps.createEncoder(
           deps.sampleRate,
@@ -138,6 +146,7 @@ export function createHandlers(deps: WorkerDeps): Handlers {
       }
       if (msg.type === "synth-chunk") {
         if (cancelledTxnIds.has(msg.txnId)) return;
+        if (erroredTxnIds.has(msg.txnId)) return;
         if (!stream || stream.txnId !== msg.txnId) throw new Error("no active synth stream");
         const pcm = await deps.synthesizePcm(msg.text, stream.voice);
         // Re-check: user may have cancelled while synthesizePcm awaited.
@@ -158,6 +167,10 @@ export function createHandlers(deps: WorkerDeps): Handlers {
           cancelledTxnIds.delete(msg.txnId);
           return;
         }
+        if (erroredTxnIds.has(msg.txnId)) {
+          erroredTxnIds.delete(msg.txnId);
+          return;
+        }
         if (!stream || stream.txnId !== msg.txnId) throw new Error("no active synth stream");
         await stream.encoder.finish();
         const wallMs = performance.now() - stream.startMs;
@@ -172,11 +185,21 @@ export function createHandlers(deps: WorkerDeps): Handlers {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      // Log into the worker console so devtools shows the real stack — the
+      // posted error message gets stringified into the UI but the underlying
+      // ORT/tensor traceback only lives on the worker side.
+      console.error(`[worker] ${msg.type} failed:`, err);
       const errMsg: OutMsg = { type: "error", message };
       if ("id" in msg && typeof msg.id === "number") errMsg.id = msg.id;
       if ("txnId" in msg && typeof msg.txnId === "number") errMsg.txnId = msg.txnId;
       deps.post(errMsg);
-      if ("txnId" in msg) stream = null;
+      if ("txnId" in msg) {
+        // Mark this txn as errored so any queued chunk/end messages drop
+        // silently rather than re-raising "no active synth stream" and
+        // clobbering the first error in the UI.
+        if (typeof msg.txnId === "number") erroredTxnIds.add(msg.txnId);
+        stream = null;
+      }
     }
   }
 

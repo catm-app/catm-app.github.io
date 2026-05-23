@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { DiscardDialog } from "./components/DiscardDialog";
-import { ModelPopover } from "./components/ModelPopover";
+import { ModelManager, type TierState } from "./components/ModelManager";
 import { Rail } from "./components/Rail";
 import { encodePcmToCompleteMp4 } from "./hls/encode";
-import { LOW_TIER, formatMb } from "./modelConfig";
+import { BASIC_TIER, formatMb } from "./modelConfig";
 import {
   type SegmentEntry,
   type SessionMeta,
@@ -114,19 +114,35 @@ export function App(): React.JSX.Element {
   const [doc, setDoc] = useState<DocState>(EMPTY_DOC);
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
   const [storage, setStorage] = useState<StorageBreakdown | null>(null);
-  const [speed, setSpeed] = useState<number>(1.25);
+  const [speed] = useState<number>(1.25);
   const [pendingNav, setPendingNav] = useState<
     { kind: "open"; id: string } | { kind: "new" } | null
   >(null);
   const [playToken, setPlayToken] = useState(0);
   const [showReadyStamp, setShowReadyStamp] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmRemoveBasic, setConfirmRemoveBasic] = useState(false);
   const [confirmClearLibrary, setConfirmClearLibrary] = useState(false);
   const [voice, setVoice] = useState<VoiceId>(() => readVoice());
   const [liveChunkDurations, setLiveChunkDurations] = useState<number[] | null>(null);
   const [previewVoice, setPreviewVoice] = useState<VoiceId | null>(null);
   const [modelPopoverOpen, setModelPopoverOpen] = useState(false);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Manager state mirrors the Basic worker's status. The Pro card always
+  // shows "coming soon" — see ModelManager.
+  const basicTierState: TierState =
+    status.kind === "downloading"
+      ? {
+          kind: "downloading",
+          loadedMb: status.loadedMb,
+          totalMb: status.totalMb,
+          fraction: status.fraction,
+        }
+      : status.kind === "ready"
+        ? { kind: "ready" }
+        : status.kind === "error"
+          ? { kind: "error", message: status.message }
+          : { kind: "absent" };
 
   const deviceRef = useRef<"webgpu" | "wasm">("wasm");
   const [perf, setPerf] = useState<PerfState>({
@@ -225,6 +241,7 @@ export function App(): React.JSX.Element {
 
   const startWorker = useCallback(() => {
     if (workerRef.current) return;
+    // Only Basic (Kokoro) ships today; Pro is marked "coming soon" in the UI.
     const w = new Worker(new URL("./worker/kokoro.worker.ts", import.meta.url), {
       type: "module",
     });
@@ -544,7 +561,7 @@ export function App(): React.JSX.Element {
     await refreshLibrary();
   }
 
-  async function onDeleteModel(): Promise<void> {
+  async function removeBasic(): Promise<void> {
     workerRef.current?.terminate();
     workerRef.current = null;
     progressMapRef.current.clear();
@@ -558,7 +575,7 @@ export function App(): React.JSX.Element {
           .map((k) => caches.delete(k)),
       );
     } catch {
-      /* ignore cache errors */
+      /* ignore */
     }
     try {
       localStorage.removeItem(ONBOARDED_KEY);
@@ -568,7 +585,7 @@ export function App(): React.JSX.Element {
     setOnboarded(false);
     setStatus({ kind: "first-launch" });
     setDoc(EMPTY_DOC);
-    setConfirmDelete(false);
+    setConfirmRemoveBasic(false);
   }
 
   async function onClearAllSessions(): Promise<void> {
@@ -616,27 +633,6 @@ export function App(): React.JSX.Element {
     return (
       <>
         <OnboardingView status={status} onStartDownload={onStartDownload} />
-        {confirmDelete ? (
-          <ConfirmDialog
-            title={
-              <>
-                Delete <em>Kokoro</em>?
-              </>
-            }
-            body={
-              <>
-                The voice will be removed from this device. You'll have to download it again before
-                your next read — about {formatMb(LOW_TIER.sizeMb)}. Your saved sessions stay where
-                they are.
-              </>
-            }
-            confirmLabel="Delete model"
-            tone="danger"
-            onCancel={() => setConfirmDelete(false)}
-            onConfirm={() => void onDeleteModel()}
-            testId="confirm-delete-model"
-          />
-        ) : null}
       </>
     );
   }
@@ -675,47 +671,48 @@ export function App(): React.JSX.Element {
               dismissReadyStamp();
               setDoc((d) => ({ ...d, sourceText: t }));
             }}
-            onSpeedChange={setSpeed}
             onRead={onRead}
             onCancel={onCancelSynth}
             onRename={(id, t) => void onRenameSession(id, t)}
             liveChunkDurations={liveChunkDurations}
             onChangeVoice={onChangeVoice}
             onPreviewVoice={(v) => void onPreviewVoice(v)}
+            onOpenModelManager={() => setModelPopoverOpen(true)}
           />
         </main>
       </div>
 
       {modelPopoverOpen ? (
-        <ModelPopover
-          onClose={() => setModelPopoverOpen(false)}
-          onRemoveModel={() => {
-            setModelPopoverOpen(false);
-            setConfirmDelete(true);
-          }}
+        <ModelManager
+          basicState={basicTierState}
           synthInProgress={status.kind === "synthesising"}
+          onClose={() => setModelPopoverOpen(false)}
+          onRemoveBasic={() => {
+            setModelPopoverOpen(false);
+            setConfirmRemoveBasic(true);
+          }}
         />
       ) : null}
 
-      {confirmDelete ? (
+      {confirmRemoveBasic ? (
         <ConfirmDialog
           title={
             <>
-              Delete <em>Kokoro</em>?
+              Remove <em>{BASIC_TIER.family}</em>?
             </>
           }
           body={
             <>
-              The voice will be removed from this device. You'll have to download it again before
-              your next read — about {formatMb(LOW_TIER.sizeMb)}. Your saved sessions stay where
-              they are.
+              Basic ({BASIC_TIER.family}, about {formatMb(BASIC_TIER.sizeMb)}) will be removed from
+              this device. You'll have to download it again before your next read. Your saved
+              sessions stay where they are.
             </>
           }
-          confirmLabel="Delete model"
+          confirmLabel="Remove"
           tone="danger"
-          onCancel={() => setConfirmDelete(false)}
-          onConfirm={() => void onDeleteModel()}
-          testId="confirm-delete-model"
+          onCancel={() => setConfirmRemoveBasic(false)}
+          onConfirm={() => void removeBasic()}
+          testId="confirm-remove-basic"
         />
       ) : null}
 

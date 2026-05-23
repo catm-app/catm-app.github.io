@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AudioPlayer } from "../components/AudioPlayer";
+import { ModelChip } from "../components/ModelChip";
 import { VoiceChip } from "../components/VoiceChip";
 import { attachHlsToAudio } from "../hls/playback";
 import type { SessionMeta } from "../storage/sessionStore";
@@ -7,7 +8,6 @@ import { CHUNK_CHARS, chunkText, locateChunks } from "../textChunk";
 import type { AppStatus, DocState } from "../types";
 import type { VoiceId } from "../worker/kokoro.worker";
 
-const SPEEDS = [0.75, 1.0, 1.25, 1.5, 2.0] as const;
 const WORDS_PER_MIN = 150;
 
 function countWords(text: string): number {
@@ -34,11 +34,11 @@ interface ReaderViewProps {
   voice: VoiceId;
   previewVoice: VoiceId | null;
   onTextChange: (text: string) => void;
-  onSpeedChange: (s: number) => void;
   onRead: () => void;
   onCancel: () => void;
   onRename: (id: string, title: string) => void;
   onChangeVoice: (v: VoiceId) => void;
+  onOpenModelManager: () => void;
   liveChunkDurations: number[] | null;
   onPreviewVoice: (v: VoiceId) => void;
 }
@@ -53,7 +53,6 @@ export function ReaderView(props: ReaderViewProps): React.JSX.Element {
     shouldPlayToken,
     showReadyStamp,
     onTextChange,
-    onSpeedChange,
     onRead,
     onCancel,
     onRename,
@@ -62,6 +61,7 @@ export function ReaderView(props: ReaderViewProps): React.JSX.Element {
     previewVoice,
     onChangeVoice,
     onPreviewVoice,
+    onOpenModelManager,
   } = props;
 
   const words = countWords(doc.sourceText);
@@ -284,6 +284,19 @@ export function ReaderView(props: ReaderViewProps): React.JSX.Element {
           />
 
           <div className="toolbar">
+            <ModelChip
+              downloading={
+                status.kind === "downloading"
+                  ? {
+                      loadedMb: status.loadedMb,
+                      totalMb: status.totalMb,
+                      fraction: status.fraction,
+                    }
+                  : null
+              }
+              disabled={isSynth}
+              onOpenManager={onOpenModelManager}
+            />
             <VoiceChip
               voice={voice}
               previewVoice={previewVoice}
@@ -292,23 +305,6 @@ export function ReaderView(props: ReaderViewProps): React.JSX.Element {
               onPreviewVoice={onPreviewVoice}
               disabled={isSynth}
             />
-            <fieldset
-              className="seg"
-              aria-label="Playback speed"
-              style={{ border: 0, padding: 0, margin: 0, display: "inline-flex" }}
-            >
-              {SPEEDS.map((s) => (
-                <button
-                  type="button"
-                  key={s}
-                  className={s === speed ? "on" : undefined}
-                  onClick={() => onSpeedChange(s)}
-                  aria-pressed={s === speed}
-                >
-                  {s === 1 ? "1.0" : s === 2 ? "2.0" : s.toString().replace(/^0/, "")}×
-                </button>
-              ))}
-            </fieldset>
             <span className="spacer" />
             <span className="stats">
               <b>{words.toLocaleString()}</b> words · <b>{estMin || 0} min</b>

@@ -205,15 +205,14 @@ export function Rail({
             strokeWidth="2"
             aria-hidden="true"
           >
-            <title>Model</title>
+            <title>Models</title>
             <polygon points="12 2 2 7 12 12 22 7 12 2" />
             <polyline points="2 17 12 22 22 17" />
             <polyline points="2 12 12 17 22 12" />
           </svg>
-          Model
+          Models
         </span>
         <span className="right">
-          <b>Low · Kokoro</b>
           <span className="chev" aria-hidden="true">
             ▸
           </span>

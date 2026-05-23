@@ -1,13 +1,13 @@
 # Research — model selection for catm
 
-*Last reviewed: 2026-05-21.*
+*Last reviewed: 2026-05-22.*
 
 This document covers the two model selection decisions for catm:
 
 - **Part 1** — the *paragraph batcher*: accepts raw text, returns paragraph-sized batches of sentences for TTS input.
-- **Part 2** — the *TTS model* per tier (Low / Medium / High): accepts a batch of text, returns audio.
+- **Part 2** — the *TTS model* per tier (Basic / Pro): accepts a batch of text, returns audio.
 
-Both must execute in the browser, ideally on the same ONNX Runtime Web plus WebGPU stack, under permissive licenses. Both are subject to the PRD's per-tier resource budget — Kokoro Low is approximately 80 MB on disk and approximately 600 MB RAM during synthesis; that constrains all subsequent choices.
+Both must execute in the browser, ideally on the same ONNX Runtime Web plus WebGPU stack, under permissive licenses. The product surfaces two tiers — **Basic** (Kokoro 82M, ~310 MB) and **Pro** (Qwen3-TTS 1.7B, ~3.3 GB at FP16) — chosen so the upgrade reason is unambiguous: faithfulness and naturalness, at roughly 10× the download.
 
 ---
 
@@ -16,11 +16,10 @@ Both must execute in the browser, ideally on the same ONNX Runtime Web plus WebG
 | Component | Pick | Confidence | Notes |
 |---|---|---|---|
 | Paragraph batcher | **`sat-3l-sm`** (wtpsplit) | **High** | Shared across tiers; segmentation is independent of voice quality |
-| Low TTS | **Kokoro 82M v1.0** | **High** | TTS Arena V2 ELO 1500 (45% win rate against the leaderboard). Highest-ranked open-weight model under 100M parameters. Browser plus WebGPU operation verified |
-| Medium TTS | Chatterbox-Turbo 350M *or* CosyVoice 3 0.5B | **Medium** | Chatterbox is preferable on deployment readiness (official ONNX export, MIT, q4f16 variants). CosyVoice 3 is preferable on objective WER (1.68% test-en). Evaluation pending |
-| High TTS | Qwen3-TTS 1.7B (Soundly INT4 ONNX) *or* Orpheus 1B | **Low** | Benchmarks favour Qwen3-TTS (1.24% WER test-en, state-of-the-art in published comparisons). Deployment ergonomics favour Orpheus 1B (smaller, Llama-3 quantisation path). Evaluation pending |
+| Basic TTS | **Kokoro 82M v1.0** | **High** | TTS Arena V2 ELO 1500 (45% win rate against the leaderboard). Highest-ranked open-weight model under 100M parameters. Browser plus WebGPU operation verified |
+| Pro TTS | **Qwen3-TTS 1.7B** (`xkos/Qwen3-TTS-12Hz-1.7B-ONNX`) | **Medium** | Strongest published WER on the open-weight field (1.54% on Seed-TTS test-en per independent re-evaluation in the OmniVoice paper; 1.24% per Qwen self-report). Apache 2.0. FP16 ONNX export published as a component graph (speaker_encoder, speech_tokenizer_encoder, speech_tokenizer_decoder, code_predictor, code_predictor_kv, codec_embedding, 16× per-codebook embed tables). 9 built-in speakers (2 native English: Ryan, Aiden). Browser pipeline is engineering we own (same shape as Kokoro), not an external blocker |
 
-PRD changes implied: the Medium and High tier selections differ from the original PRD. The selections remain evaluation-dependent because the benchmark-leading candidate and the deployment-leading candidate diverge in both tiers. See §"Audio quality benchmarks" for the data driving these conclusions.
+PRD changes implied: the prior three-tier scheme (Low / Medium / High) is collapsed to **two tiers (Basic / Pro)**. A middle tier was hard to justify: Chatterbox-Turbo at ~200 MB undercut Kokoro's ~310 MB, and OmniVoice at ~800 MB – 1.1 GB sat awkwardly close to Pro. Two tiers give the user a clear choice — *Kokoro for everyone, Qwen for users who want the upgrade* — without a middle option that doesn't pay its own complexity cost. See §"Correction (2026-05-22): three tiers → two tiers" for the reasoning shift.
 
 ---
 
@@ -94,14 +93,16 @@ Random forest, **0.6 MB ONNX file**, approximately 1 GB runtime RAM, F1 0.773 (v
 
 ---
 
-# Part 2 — TTS tier selection (Low / Medium / High)
+# Part 2 — TTS tier selection (Basic / Pro)
 
-**Objective.** Select the three tier models catm exposes. Each must:
+**Objective.** Select the two tier models catm exposes. Each must:
 
 1. Execute in the browser via ONNX Runtime Web plus WebGPU (or WASM fallback).
 2. Be distributed under a permissive license (Apache 2.0 or MIT preferred).
 3. Achieve naturalness sufficient for 10+ minute reads (PRD Goal #1).
-4. Fit within a per-tier resource budget — disk and RAM — disclosed to the user (per the PRD's tier card).
+4. Fit within a per-tier resource budget — disk and RAM — disclosed to the user.
+
+The two tiers differ on the upgrade reason only — *faithfulness and naturalness*. Pro downloads roughly 4× more weight to deliver materially better WER and prosody; Basic is the always-available default that ships pleasant-but-synthetic audio at ~310 MB. Anything in between (Chatterbox-Turbo 350M, OmniVoice 0.8B, CosyVoice 3 0.5B) either fails to differentiate on quality enough to justify a separate tier or sits awkwardly close to Pro on download size — see §"Correction (2026-05-22): three tiers → two tiers".
 
 ## Browser-deployable TTS landscape (May 2026)
 
@@ -128,7 +129,7 @@ Top trending TTS models on HuggingFace as of May 2026 (from the trending list):
 | 14 | `FunAudioLLM/Fun-CosyVoice3-0.5B-2512` | 0.5 B | Apache 2.0 | ONNX export exists; browser execution unverified |
 | 15 | `OpenMOSS-Team/MOSS-TTS-Nano-100M` | 100 M | ? | Candidate for evaluation |
 
-Also tracked: [Orpheus TTS](https://github.com/canopyai/Orpheus-TTS) (Apache 2.0), distributed in 150M, 400M, 1B, and 3B variants — relevant for the High tier because the 1B variant is a plausible browser-deployment candidate.
+Also tracked: [Orpheus TTS](https://github.com/canopyai/Orpheus-TTS) (Apache 2.0). The README lists 150M, 400M, 1B, and 3B variants, but **only the 3B is published as of 2026-05-22** — see §"Correction (2026-05-22)".
 
 ## Audio quality benchmarks
 
@@ -167,7 +168,7 @@ Kokoro v1.0 is the only sub-100M open-weight model in the top 26. It wins 45% of
 Two conclusions from these leaderboards together:
 
 1. **Open-weight models trail closed frontier models by approximately 75–100 ELO** — non-trivial but not disqualifying. Top closed wins approximately 60% of head-to-heads; Kokoro wins approximately 45%.
-2. **Kokoro is the highest-ranked sub-100M model on both leaderboards** that surface this weight class. For Low tier this is direct evidence supporting the PRD's selection.
+2. **Kokoro is the highest-ranked sub-100M model on both leaderboards** that surface this weight class. For Basic tier this is direct evidence supporting the PRD's selection.
 
 ### Objective benchmarks (intelligibility and speaker similarity)
 
@@ -224,35 +225,34 @@ Three known gaps:
 
 ### Impact on tier selection
 
-The objective data adjusts the conclusions:
+The objective data and the two-tier collapse yield two conclusions:
 
-- **Low tier (Kokoro)** — supported by the only third-party human-preference data available. Strongest evidence base.
+- **Basic tier (Kokoro)** — supported by the only third-party human-preference data available. Strongest evidence base. Retained.
 
-- **Medium tier (Chatterbox-Turbo versus CosyVoice 3)** — the data favours CosyVoice 3 on objective metrics (1.68% WER versus no published Chatterbox WER) and favours Chatterbox-Turbo on vendor-published blind preference and on browser-deployment readiness (official ONNX). For long-form reading, **WER plausibly outweighs expressive voice cloning**, which favours CosyVoice 3. The earlier selection of Chatterbox-Turbo was made on browser-deployment ergonomics; the benchmark data reduces the margin.
+- **Pro tier (Qwen3-TTS)** — strongest published WER on the open-weight field: **1.54% on Seed-TTS test-en** in the OmniVoice paper's independent re-evaluation (Qwen's own report claims 1.24%; the independent figure is the more credible reference). OmniVoice itself measures slightly better on LibriSpeech-PC (1.30% vs Qwen's 1.60%) but has no published ONNX export. Qwen3-TTS does — `xkos/Qwen3-TTS-12Hz-1.7B-ONNX` ships the FP16 component graph. Picking Qwen trades a substantial download (~3.3 GB at FP16, see §"Correction (2026-05-22): Pro size and the missing INT4 build") and an autoregressive KV-cache loop for a ready-to-integrate artifact.
 
-- **High tier (Qwen3-TTS versus Orpheus 1B)** — the data favours Qwen3-TTS. 1.24% WER on test-en is the strongest published number in the open-weight field. Orpheus 1B has no specific published numbers. **The benchmark evidence shifts the selection toward Qwen3-TTS for High** — and the [`Soundly/Qwen3-TTS-12Hz-1.7B-ONNX-INT4`](https://huggingface.co/Soundly/Qwen3-TTS-12Hz-1.7B-ONNX-INT4) ONNX port (verified in the previous research iteration) becomes the primary evaluation target.
+The selection:
 
-The revised tier ranking, weighted by benchmark evidence rather than deployment ergonomics:
-
-| Tier | Strongest benchmark candidate | Strongest deployment candidate |
+| Tier | Selection | Reason |
 |---|---|---|
-| Low | Kokoro 82M (also leads on deployment) | Kokoro 82M |
-| Medium | CosyVoice 3 0.5B (lower WER) | Chatterbox-Turbo 350M (official ONNX) |
-| High | Qwen3-TTS 1.7B (SOTA test-en WER) | Orpheus 1B (Llama-3 quantisation path) |
+| Basic | Kokoro 82M | Only sub-100M open-weight model with verified browser execution today; leads TTS Arena V2 in its weight class |
+| Pro | Qwen3-TTS 1.7B | Strongest published Seed-TTS test-en WER; Apache 2.0; FP16 ONNX components already published (~3.3 GB on disk) |
 
-When the benchmark-leading and deployment-leading candidates diverge, the selection depends on the evaluation: if Qwen3-TTS INT4 and Chatterbox-Turbo at q4f16 load and execute correctly in `onnxruntime-web`, the benchmark winners prevail. Otherwise, the deployment-favoured fallbacks prevail.
+The middle tier the prior research recommended (Chatterbox-Turbo 350M *or* CosyVoice 3 0.5B *or* OmniVoice 0.8B) is dropped — see §"Why no middle tier" below.
+
+Browser deployability is no longer treated as a tier-selection axis: catm already runs ONNX models in the browser via `onnxruntime-web` + WebGPU, and integrating a multi-component graph is engineering of the same shape we did for Kokoro. The remaining unknowns are resource cost and quality — both intrinsic to the model, both verified by an integration measurement rather than a yes/no gate.
 
 ### Evaluation recommendations
 
 In addition to the per-tier evaluation measurements logged below, the benchmark gaps motivate the following:
 
-1. **Conduct a listening test on a representative English long-form passage** — identical 1–2 paragraphs through all four candidate models (Kokoro, Chatterbox-Turbo, CosyVoice 3, Qwen3-TTS via Soundly INT4, Orpheus 1B). Score on naturalness, intelligibility, prosody, seam quality.
+1. **Conduct a listening test on a representative English long-form passage** — identical 1–2 paragraphs through the candidate models (Kokoro, Chatterbox-Turbo, CosyVoice 3, Qwen3-TTS FP16, Orpheus 3B). Score on naturalness, intelligibility, prosody, seam quality.
 2. **Measure WER on actual output** — synthesise a reference passage, transcribe with [whisper-large-v3](https://huggingface.co/openai/whisper-large-v3), compute WER against the input. Vendor numbers may be optimistic; first-party measurements are authoritative.
 3. **Score speaker consistency across chunks** — synthesise 20 consecutive paragraphs, evaluate voice drift.
 
 A short evaluation cycle substitutes for indeterminate wait time on third-party leaderboards covering the 1–2B class.
 
-## Low tier — Kokoro 82M v1.0 [retain]
+## Basic tier — Kokoro 82M v1.0 [retain]
 
 **Recommendation: retain the PRD selection.** Kokoro is the only model in this weight class with verified end-to-end browser plus WebGPU execution today, demonstrated in [Xenova's transformers.js example](https://huggingface.co/posts/Xenova/620657830533509). Apache 2.0. 10.4 M downloads.
 
@@ -326,90 +326,103 @@ If Kokoro's seam quality fails PRD Goal #1 in evaluation, **Supertonic 3 is the 
 - RAM during synthesis (expected approximately 600 MB; verify)
 - Real-time factor on target hardware
 
-## Medium tier — Chatterbox-Turbo 350M [revise]
+## Why no middle tier
 
-**Recommendation: revise the PRD selection** from CosyVoice 3 0.5B to **Chatterbox-Turbo 350M**.
+Earlier revisions of this document recommended a Medium tier — first CosyVoice 3 0.5B (the original PRD pick), then Chatterbox-Turbo 350M. When the High tier became Qwen3-TTS 1.7B (~3.3 GB at FP16, the smallest published precision) and OmniVoice 0.8B (~800 MB – 1.1 GB at INT4) surfaced as a serious candidate, the middle tier stopped making sense:
 
-[`ResembleAI/chatterbox-turbo-ONNX`](https://huggingface.co/ResembleAI/chatterbox-turbo-ONNX) is the most production-ready Medium-tier candidate currently available:
+| Candidate | Download | Position relative to Basic / Pro |
+|---|---|---|
+| Chatterbox-Turbo 350M (q4f16) | ~200 MB | **Smaller than Basic** (Kokoro at ~310 MB fp32). A "Medium" that's a smaller download than Basic doesn't read as an upgrade. |
+| CosyVoice 3 0.5B | unverified (no published ONNX size) | Likely similar to Chatterbox. Less ecosystem maturity. |
+| OmniVoice 0.8B (q4 estimate) | ~800 MB – 1.1 GB | A potential middle slot if it existed in ONNX, but no published export — would require us to do the conversion. |
 
-- **MIT license.** No use-case restrictions, no attribution beyond the standard notice.
-- **Official ONNX release** from Resemble AI rather than a community port. Multiple quantisation variants: `fp32`, `fp16`, `q8`, `q4`, `q4f16`.
-- **350 M parameters** — approximately 4× Kokoro's size, appropriate for a Medium tier.
-- **Approximately 6× real-time** on a consumer GPU, sub-200 ms time-to-first-audio. (Reference: Kokoro is approximately 1.7× real-time.)
-- **Mel-decoder distilled from 10 steps to 1** — fast on browser-tier hardware.
-- **Native paralinguistic tags** — `[cough]`, `[laugh]`, `[chuckle]`, etc., embeddable in input text.
-- **2.13 M downloads** on the parent `ResembleAI/chatterbox` repository.
+Each option fails on a different axis:
 
-### Estimated browser footprint
+- **Chatterbox / CosyVoice** are technically sound but don't provide a meaningful upgrade reason. Both require reference-audio voice handling (no built-in voices), introducing UX complexity that Basic and Pro both avoid. The added quality over Kokoro is marginal in long-form English reading.
+- **OmniVoice** has the strongest measured WER per parameter in the field (1.30% LibriSpeech-PC, 1.60% Seed-TTS test-en in the OmniVoice paper) but no published ONNX export, so adopting it would mean a model-conversion workstream in addition to integration. At ~1 GB it also sits close to Pro on download — splitting hairs between two heavyweight tiers gives the user choice paralysis instead of clarity.
 
-At q4f16 (smallest quantisation), the four model components together are projected at **150–200 MB on disk** with **approximately 1.5–2 GB RAM** during synthesis. This is within the PRD's Medium-tier budget (approximately 500 MB disk was a pre-evaluation upper bound; q4f16 is closer to 200 MB).
+The two-tier collapse trades model breadth for an unambiguous upgrade story: *Basic for everyone (~310 MB); Pro for users who want the upgrade (~3.3 GB)*. Both Chatterbox-Turbo and OmniVoice remain in §"Models considered and rejected" as future Pro-tier contingencies.
+
+## Pro tier — Qwen3-TTS 1.7B [confirm]
+
+**Recommendation: retain Qwen3-TTS** as the PRD selection. The earlier draft of this document recommended switching to "Orpheus 1B" on deployment-ergonomics grounds; that reasoning is retired (see §"Correction (2026-05-22)").
+
+[`Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice`](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice) is the source model. 2 B parameters total (the "1.7B" in the name reflects the active LLM component). Apache 2.0. 1.59 M downloads on the parent repo. Multilingual (10 languages); 9 built-in speakers, two of which are native English (`Ryan`, `Aiden`).
+
+### ONNX distribution
+
+Two community ports exist with byte-identical structure:
+
+- [`xkos/Qwen3-TTS-12Hz-1.7B-ONNX`](https://huggingface.co/xkos/Qwen3-TTS-12Hz-1.7B-ONNX) — primary integration target
+- [`Soundly/Qwen3-TTS-12Hz-1.7B-ONNX-INT4`](https://huggingface.co/Soundly/Qwen3-TTS-12Hz-1.7B-ONNX-INT4) — same files, misleading "INT4" name (see §"Correction (2026-05-22): Pro size and the missing INT4 build")
+
+Distributed as a **component graph**, not a monolith. The `fp16/voice_clone/` subset (the one we ship — voice_design is excluded) contains:
+
+- `fp16/shared/speaker_encoder.onnx` + `.onnx.data` — **48 MB** — reference-audio → speaker embedding
+- `fp16/shared/speech_tokenizer_encoder.onnx` + `.onnx.data` — **110 MB** — audio → token encoder
+- `fp16/shared/speech_tokenizer_decoder.onnx` + `.onnx.data` — **297 MB** — token → audio waveform decoder
+- `fp16/voice_clone/code_predictor.onnx` + `.onnx.data` — **224 MB** — autoregressive next-token predictor (prefill)
+- `fp16/voice_clone/code_predictor_kv.onnx` + `.onnx.data` — **224 MB** — KV-cache decode variant
+- `fp16/voice_clone/codec_embedding.onnx` + `.onnx.data` — **25 MB**
+- 16× `fp16/voice_clone/code_predictor_embed_g[0-15].onnx` + sidecars — **~270 MB total** — per-codebook embedding tables
+- 28× `layers.[0-13].{input,post_attention}_layernorm.weight` — small layer-norm shards
+- `tokenizer/tokenizer.json` and configs — ~12 MB
+
+Both FP16 and FP32 directories are published; FP16 is published as the recommended variant. There is **no published INT4 build** — neither Soundly nor xkos publishes integer-quantised weights.
+
+### Rationale for the selection
+
+- **Strongest published WER in the open-weight field.** Seed-TTS Eval test-en: **1.24%** per Qwen's tech report; **1.54%** per the OmniVoice paper's independent re-evaluation. The independent figure is the more credible reference. Either way, ahead of CosyVoice 3 1.5B (1.45%), CosyVoice 3 0.5B (1.68%), F5-TTS (2.0%), Higgs Audio V2 (2.44%), VibeVoice (3.04%). For a long-form reader, WER is the metric that most directly affects perceived quality.
+- **Component-graph distribution** matches our existing integration shape — multiple `InferenceSession` instances, explicit tensor wiring, autoregressive KV-cache loop. The same kind of work we did to replace `kokoro-js` with direct `onnxruntime-web` (commit `41f1c42`).
+- **Built-in speakers** keep the voice picker conceptually compatible with Kokoro's `af_heart.bin` UX. No reference-audio file picker or recorded-clip handling is required — Basic and Pro both surface a flat list of named voices.
+- **Apache 2.0**, no use-case restrictions.
+- **Multilingual headroom** for v1.x without re-architecting.
+
+### Browser footprint (measured against the xkos file tree, 2026-05-22)
+
+- **`fp16/voice_clone/` total: ~2.8 GB**
+- **`fp16/shared/` total: ~456 MB**
+- **`tokenizer/` + configs: ~12 MB**
+- **Combined Pro download: ~3.3 GB** at FP16 (the smallest published precision)
+- Runtime RAM during synthesis: pre-evaluation estimate **~4–5 GB** (codec activations + LLM hidden states + growing KV cache + per-codebook embeddings resident on the GPU)
+
+There is no smaller published precision. If FP16 proves unmanageable on consumer hardware, the next move is offline INT4 conversion (`onnxruntime.quantization` Q4 weights with FP16 activations, ~900 MB – 1.1 GB projected) — out of scope for first integration.
 
 ### Caveats
 
-- **Browser inference via `onnxruntime-web` is not explicitly demonstrated** by Resemble. The published examples are Python `onnxruntime`. Integration work required.
-- **English-focused** (the multilingual variant Chatterbox-Multilingual is a separate 23-language model).
-- **PerTh watermarking** is embedded in output. Inaudible, but should be disclosed in privacy and About copy.
+- **No public browser/JS reference implementation.** The onnxruntime-web wiring is engineering we own. Same risk profile as the Kokoro direct-ORT switch, with more components.
+- **English voices are a minority** of the 9 built-in speakers. Acceptable for v1 (English-only product), but the multilingual surface area is wasted disk for our use case until v1.x.
+- **Autoregressive LLM with KV cache.** Per-chunk TTFA will be higher than Kokoro, and chunk size interacts with KV cache memory. Chunking strategy from `src/textChunk.ts` may need retuning at this tier.
 
-### Rationale against CosyVoice 3 0.5B
+### Evaluation measurements (Pro)
 
-- ONNX export exists ([`ayousanz/cosy-voice3-onnx`](https://huggingface.co/ayousanz/cosy-voice3-onnx), [`FunAudioLLM/Fun-CosyVoice3-0.5B-2512`](https://huggingface.co/FunAudioLLM/Fun-CosyVoice3-0.5B-2512)) but **no demonstrated browser execution**.
-- Released December 2025; less ecosystem maturity.
-- Larger (0.5 B versus 0.35 B) for plausibly equivalent English quality.
-- Strength is multilingual including Mandarin; not a v1 requirement.
+- Verify each component loads in `onnxruntime-web` + WebGPU (look for fp16 activation saturation, the issue we hit on Kokoro's `*f16` variants — for Qwen this is the published precision, so a saturation failure is a hard block)
+- TTFA on a cold model at representative chunk length (~300 chars)
+- RAM during synthesis on the assumed 8 GB M1 floor — model load alone may exceed it
+- Real-time factor — Qwen reports ~1× realtime on consumer GPUs in the tech report; verify in browser
+- Audible quality delta over Basic — does it justify the ~10× download in listening tests
+- If FP16 fails on consumer hardware, evaluate the INT4 self-conversion path
 
-CosyVoice 3 remains the secondary candidate if Chatterbox-Turbo does not pass the browser-integration evaluation.
+### Correction (2026-05-22): Pro size and the missing INT4 build
 
-### Evaluation measurements (Medium)
+Earlier in this document the Pro download was projected at **~1.2–1.5 GB at INT4**, on the assumption that the [`Soundly/Qwen3-TTS-12Hz-1.7B-ONNX-INT4`](https://huggingface.co/Soundly/Qwen3-TTS-12Hz-1.7B-ONNX-INT4) repo's name reflected the actual contents. It does not. Both Soundly and the structurally-identical [`xkos/Qwen3-TTS-12Hz-1.7B-ONNX`](https://huggingface.co/xkos/Qwen3-TTS-12Hz-1.7B-ONNX) publish **FP16 and FP32** precision builds only. No INT4 weights exist in either repo. The "INT4" suffix on the Soundly fork is misleading.
 
-- Verify `onnxruntime-web` loads the q4f16 components
-- Disk and RAM at q4f16
-- Time-to-first-audio with cold model
-- Seam quality (Chatterbox-Turbo's 1-step decoder may concatenate differently from Kokoro)
+The corrected Pro download at FP16 is **~3.3 GB** (measured: 2.8 GB voice_clone + 456 MB shared + 12 MB tokenizer). This is ~10× Basic, not the 4× the earlier draft claimed. The two-tier rationale still holds (no middle candidate justifies its own integration cost — see §"Why no middle tier"), but the upgrade ask on the user is materially larger than previously disclosed. If FP16 proves unmanageable, the next move is **offline INT4 conversion using `onnxruntime.quantization`** — out of scope for the first integration.
 
-## High tier — Orpheus 1B [revise]
+### Correction (2026-05-22): the dropped Orpheus 1B path
 
-**Recommendation: revise the PRD selection** from Qwen3-TTS 2B (1.7B) to **Orpheus 1B**.
+A prior revision of this section recommended **"Orpheus 1B"** as the High tier on the grounds that Orpheus was distributed as a 150M/400M/1B/3B family with a smoother Llama-3 quantisation path. Two facts retire that recommendation:
 
-[`canopyai/Orpheus-TTS`](https://github.com/canopyai/Orpheus-TTS) is distributed as a family — 150 M, 400 M, 1 B, 3 B. Apache 2.0 across all variants. The flagship is the 3B, but **the 1B variant is the appropriate selection for catm's High tier** because it is the largest variant in the family with a realistic browser-deployment path.
+1. **The Orpheus 1B variant is not a published model.** [`huggingface.co/canopylabs`](https://huggingface.co/canopylabs) hosts only `orpheus-3b-0.1-pretrained` and `orpheus-3b-0.1-ft`. The GitHub README lists smaller sizes as a future release item, but as of 2026-05-22 only the 3B is shipped.
+2. **The 3B is large.** The community ONNX export at [`onnx-community/orpheus-3b-0.1-ft-ONNX`](https://huggingface.co/onnx-community/orpheus-3b-0.1-ft-ONNX) measures **~2.18 GB at q4f16** and **~2.43 GB at q4** on disk — roughly 4× the per-quantisation estimates the earlier draft extrapolated from a 1B variant.
 
-### Rationale for Orpheus over Qwen3-TTS
-
-- **Apache 2.0 versus Apache 2.0** — license parity.
-- **Multiple sizes in a single architecture** — 150M, 400M, 1B, 3B share the same architecture, permitting tier progression without re-architecting the integration. Variant selected by fit.
-- **Llama-3 backbone** — established quantisation behaviour (q4 and q4f16 paths well-validated on Llama derivatives).
-- **Voice cloning and emotion control** — not v1 features but supported by the same artifact.
-- **Lower latency on smaller variants** — approximately 200 ms streaming.
-
-### Estimated browser footprint (1B variant)
-
-| Quantisation | Approximate disk | Approximate RAM |
-|---|---|---|
-| fp16 | ~2 GB | ~3 GB |
-| q8 | ~1 GB | ~2 GB |
-| q4 | **~600 MB** | **~1.5 GB** |
-
-q4 satisfies the PRD's "high-end devices only" constraint. At approximately 600 MB disk it is approximately 8× Kokoro — a substantive Medium-to-High step in tier cost.
-
-### The 3B variant
-
-Orpheus 3B is the closer match to "best — near-human, expressive" in the PRD's Settings UI. Browser deployment of 3B is at the boundary of feasibility (q4 ≈ 1.7 GB; user devices require 4 GB or more free RAM). Worth a verification evaluation but unlikely to ship in v1. The 1B is positioned as High in the UI and the distinction disclosed.
-
-### Rationale against Qwen3-TTS 1.7B (PRD selection)
-
-- 2 B parameters per the HuggingFace model card — larger than the PRD assumed (1.7 B refers to active parameters; the full checkpoint is 2 B).
-- At q4, approximately 1 GB disk and approximately 2.5 GB RAM. Beyond browser comfort.
-- Less browser-deployment activity than Orpheus.
-
-Qwen3-TTS remains a secondary candidate. If a future user requires Mandarin (Qwen's strength), it is the appropriate model, but that is a v1.x feature.
-
-### Evaluation measurements (High)
-
-- Verify Orpheus 1B q4 loads in `onnxruntime-web` plus WebGPU
-- TTFA on a cold model — expected to exceed Low and Medium given the size
-- Audible quality delta over Medium — does it justify the resource cost in evaluation listening tests
+The Orpheus-vs-Qwen comparison was also weighted by deployment ergonomics ("does a transformers.js example exist") more heavily than was warranted. catm already runs `onnxruntime-web` + WebGPU directly; the presence of an external JS demo is a convenience, not a precondition. Re-weighting on intrinsic capability and resource cost favours Qwen3-TTS by the WER margin above. Orpheus 3B is retained as a contingency (see §"Models considered and rejected").
 
 ## Models considered and rejected
 
+- **[Orpheus 3B](https://huggingface.co/onnx-community/orpheus-3b-0.1-ft-ONNX)** — Apache 2.0, Llama-3.2-3B-Instruct backbone, 8 built-in English voices, transformers.js `pipeline()` published. **~2.18 GB on disk at q4f16** (smallest working variant) — actually *smaller than* Qwen3-TTS at FP16 (~3.3 GB), now that the Qwen size is measured. No published Seed-TTS WER number; Qwen's 1.54% (independent) is the strongest in the field. The size argument that justified Qwen has flipped, but the quality argument hasn't — Qwen retains the recommendation on WER. **Promoted to a serious Pro-tier contingency** if either (a) Qwen integration fails on a measurement we can't recover from or (b) the ~3.3 GB download proves a hard barrier. The Orpheus 1B variant cited in earlier drafts of this document is not a published artifact.
+- **[Sesame CSM-1B](https://huggingface.co/sesame/csm-1b)** — Apache 2.0, 1 B params, two-stage Llama-backbone + Mimi-decoder, 227 k downloads. Would be the ideal size for High. No ONNX export exists, official or community. Rejected because a model conversion is a separate workstream from a model integration; revisit if a community ONNX appears.
+- **[Microsoft VibeVoice-1.5B](https://huggingface.co/microsoft/VibeVoice-1.5B)** — Trending #18, 198 k downloads. License and parameter accounting are inconsistent on the model card (named 1.5B, listed at 3B). No published WER. Not investigated further; revisit if the licensing clarifies and a WER number is published.
 - **[Higgs Audio V2](https://github.com/boson-ai/higgs-audio)** — 3.6 B LLM plus 2.2 B audio FFN, approximately 5.8 B total. Exceeds browser budget under any quantisation.
 - **[Voxtral 4B](https://huggingface.co/mistralai/Voxtral-4B-TTS-2603)** — 4 B, server-class.
 - **[VoxCPM2](https://huggingface.co/openbmb/VoxCPM2)** — 12+ GB VRAM for fp32. Server-class.
@@ -419,7 +432,7 @@ Qwen3-TTS remains a secondary candidate. If a future user requires Mandarin (Qwe
 
 ## PRD changes implied
 
-The PRD §"Tiered voice — a user-facing choice" table currently lists:
+The PRD §"Tiered voice — a user-facing choice" table currently lists three tiers:
 
 ```
 Low: Kokoro 82M, ~80 MB
@@ -427,15 +440,33 @@ Medium: CosyVoice3 0.5B, ~500 MB
 High: Qwen3-TTS 0.6B, ~700 MB
 ```
 
-Following this research, the revised user-facing copy is:
+The revised user-facing copy is two tiers:
 
 ```
-Low: Kokoro 82M, ~80 MB, Apache 2.0, English
-Medium: Chatterbox-Turbo 350M, ~200 MB, MIT, English
-High: Orpheus 1B, ~600 MB, Apache 2.0, English
+Basic: Kokoro 82M,       ~310 MB,    Apache 2.0,  English
+Pro:   Qwen3-TTS 1.7B,   ~3.3 GB FP16, Apache 2.0, English (multilingual headroom)
 ```
 
-All three permissive, all three browser-deployable subject to evaluation verification, and the size gradient is sufficient to constitute a meaningful tier selection. Quality descriptors in the UI ("Good, pleasant" / "Closer to human" / "Best, expressive") are unchanged.
+Both permissive, integration tractable. The size gradient is ~10× — substantial. The UI descriptors collapse from a three-step ladder ("Good, pleasant" / "Closer to human" / "Best, expressive") to a two-step one ("Pleasant, lightweight" / "Closer to human, large download"). The Pro disk figure is measured against the [`xkos/Qwen3-TTS-12Hz-1.7B-ONNX`](https://huggingface.co/xkos/Qwen3-TTS-12Hz-1.7B-ONNX) file tree (FP16 voice_clone subset).
+
+Basic's figure changed from "~80 MB" in earlier drafts to ~310 MB: that reflects shipping `model.onnx` (fp32) on WebGPU per the measurements above and commit `08f2896` ("Be honest about model size"), not a research-side update.
+
+---
+
+## Correction (2026-05-22): three tiers → two tiers
+
+The original PRD and earlier revisions of this document assumed a three-tier ladder (Low/Medium/High). Two findings retire the middle tier:
+
+1. **The size gradient broke.** Chatterbox-Turbo 350M (the standing Medium pick) projects to ~200 MB at q4f16 — *smaller than Basic's ~310 MB*. A middle tier that downloads less than Basic doesn't read as an upgrade.
+2. **No middle candidate pays its own complexity cost.** Chatterbox needs a reference-audio voice picker (UX work Basic and Pro both avoid). OmniVoice (the strongest sub-1B candidate by independent WER) has no published ONNX export. Both add a workstream without delivering a clearly differentiated quality story between Basic and Pro.
+
+The dropped middle, in order of strength:
+
+- **OmniVoice 0.8B** (`k2-fsa/OmniVoice`) — best WER per parameter in the field (1.30% LibriSpeech-PC, 1.60% Seed-TTS test-en, Apache 2.0, 2.19M downloads, NAR diffusion-LM with RTF 0.022–0.032). Rejected because no ONNX export exists; ~3.27 GB at native BF16, ~800 MB – 1.1 GB projected at INT4, which sits awkwardly close to Pro.
+- **Chatterbox-Turbo 350M** (`ResembleAI/chatterbox-turbo-ONNX`) — MIT, official ONNX at q4f16 (~200 MB), built-in paralinguistic tags, sub-200ms TTFA. Rejected because (a) smaller than Basic, (b) reference-audio voice picker is new UX surface, (c) quality delta over Kokoro on long-form English is marginal.
+- **CosyVoice 3 0.5B** (`FunAudioLLM/Fun-CosyVoice3-0.5B-2512`) — Apache 2.0, community ONNX, 1.68% Seed-TTS test-en WER. Rejected because it duplicates Chatterbox's position with less ecosystem maturity.
+
+If a future iteration warrants three tiers — for example, if Pro's ~3.3 GB proves a hard barrier for a meaningful slice of users — OmniVoice is the first revisit candidate, contingent on an ONNX export appearing (or us converting it).
 
 ---
 
@@ -444,21 +475,19 @@ All three permissive, all three browser-deployable subject to evaluation verific
 | Component | Model | Runtime | Format | Acceleration |
 |---|---|---|---|---|
 | **Sentence + paragraph segmenter** | `sat-3l-sm` | ONNX Runtime Web | ONNX (INT8) | WebGPU → WASM |
-| **TTS — Low** | Kokoro 82M v1.0 | ONNX Runtime Web | ONNX (INT8) | WebGPU → WASM |
-| **TTS — Medium** | Chatterbox-Turbo 350M | ONNX Runtime Web | ONNX (q4f16) | WebGPU → WASM |
-| **TTS — High** | Orpheus 1B | ONNX Runtime Web | ONNX (q4) | WebGPU → WASM |
+| **TTS — Basic** | Kokoro 82M v1.0 | ONNX Runtime Web | ONNX (fp32) | WebGPU → WASM |
+| **TTS — Pro** | Qwen3-TTS 1.7B | ONNX Runtime Web | ONNX (FP16) | WebGPU → WASM |
 | **Audio encoder** | WebCodecs `AudioEncoder` | Native browser | fragmented MP4 | Native |
 | **Playback** | hls.js + `<audio>` | Native browser | HLS + fMP4 | Native MSE |
 
-One ML runtime end-to-end. One acceleration backend. One TTS model architecture family (Llama-based) beyond the Low tier.
+One ML runtime end-to-end. One acceleration backend. Pro uses a decoder-LLM-plus-codec architecture (Qwen3 backbone + multi-codebook codec), distinct from Basic's StyleTTS2-derived non-autoregressive synthesis.
 
 ## Aggregate open questions for evaluation
 
 1. SaT — ONNX file size at INT8, cold-load latency, RAM, paragraph quality, Viterbi versus greedy.
-2. Kokoro — INT8 latency, seam quality, RAM, real-time factor.
-3. Chatterbox-Turbo — `onnxruntime-web` viability at q4f16, disk, RAM, TTFA, seam quality.
-4. Orpheus 1B — q4 loadable in `onnxruntime-web`? TTFA? Quality delta over Medium relative to the resource cost?
-5. Cross-tier — does the chunking strategy applied to Kokoro generalise to the larger models? (Expected yes; verify by measurement.)
+2. Kokoro (Basic) — INT8 latency, seam quality, RAM, real-time factor.
+3. Qwen3-TTS 1.7B (Pro) — each component loadable in `onnxruntime-web` + WebGPU (especially the fp16 activation question, since fp16 is the published precision), TTFA, RAM at 300-char chunk, quality delta over Basic relative to the ~10× resource cost.
+4. Cross-tier — does the chunking strategy applied to Kokoro generalise to Qwen3-TTS? (Expected yes; verify by measurement.)
 
 ---
 
@@ -480,12 +509,18 @@ One ML runtime end-to-end. One acceleration backend. One TTS model architecture 
 - [`hexgrad/Kokoro-82M`](https://huggingface.co/hexgrad/Kokoro-82M) — canonical PyTorch weights
 - [`onnx-community/Kokoro-82M-v1.0-ONNX`](https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX) — distribution ONNX export
 - [Xenova on Kokoro v1.0 in the browser](https://huggingface.co/posts/Xenova/620657830533509)
-- [`ResembleAI/chatterbox-turbo-ONNX`](https://huggingface.co/ResembleAI/chatterbox-turbo-ONNX) — Medium-tier selection
+- [`Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice`](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice) — Pro-tier source model
+- [`xkos/Qwen3-TTS-12Hz-1.7B-ONNX`](https://huggingface.co/xkos/Qwen3-TTS-12Hz-1.7B-ONNX) — Pro-tier integration target (FP16 component graph)
+- [`Soundly/Qwen3-TTS-12Hz-1.7B-ONNX-INT4`](https://huggingface.co/Soundly/Qwen3-TTS-12Hz-1.7B-ONNX-INT4) — mirror of xkos with a misleading repo name (no actual INT4)
+- [`k2-fsa/OmniVoice`](https://huggingface.co/k2-fsa/OmniVoice) — sub-1B Pro candidate, no ONNX export yet
+- [OmniVoice paper (arXiv 2604.00688)](https://arxiv.org/html/2604.00688) — independent WER re-evaluation of Qwen3-TTS, CosyVoice3, F5-TTS
+- [`onnx-community/orpheus-3b-0.1-ft-ONNX`](https://huggingface.co/onnx-community/orpheus-3b-0.1-ft-ONNX) — Pro-tier contingency
+- [`canopyai/Orpheus-TTS`](https://github.com/canopyai/Orpheus-TTS) — Orpheus repository (only 3B variant is published despite earlier-listed family)
+- [`sesame/csm-1b`](https://huggingface.co/sesame/csm-1b) — promising 1B candidate awaiting an ONNX export
+- [`ResembleAI/chatterbox-turbo-ONNX`](https://huggingface.co/ResembleAI/chatterbox-turbo-ONNX) — dropped middle-tier candidate
 - [`ResembleAI/chatterbox`](https://huggingface.co/ResembleAI/chatterbox) — parent repository
-- [`canopyai/Orpheus-TTS`](https://github.com/canopyai/Orpheus-TTS) — High-tier selection (1B variant)
-- [`Supertone/supertonic-3`](https://huggingface.co/Supertone/supertonic-3) — Low-tier alternative
-- [`FunAudioLLM/Fun-CosyVoice3-0.5B-2512`](https://huggingface.co/FunAudioLLM/Fun-CosyVoice3-0.5B-2512) — Medium-tier fallback
-- [`Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice`](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice) — High-tier fallback (Mandarin support)
+- [`Supertone/supertonic-3`](https://huggingface.co/Supertone/supertonic-3) — Basic-tier alternative
+- [`FunAudioLLM/Fun-CosyVoice3-0.5B-2512`](https://huggingface.co/FunAudioLLM/Fun-CosyVoice3-0.5B-2512) — dropped middle-tier candidate
 - [`OpenMOSS-Team/MOSS-TTS-Nano-100M`](https://huggingface.co/OpenMOSS-Team/MOSS-TTS-Nano-100M) — small-tier monitoring candidate
 - [Higgs Audio V2 (Boson AI)](https://github.com/boson-ai/higgs-audio) — server-class
 - [HF text-to-speech trending list](https://huggingface.co/models?pipeline_tag=text-to-speech&sort=trending)
