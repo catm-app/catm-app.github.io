@@ -33,9 +33,8 @@ interface CatmDB extends DBSchema {
 }
 
 const DB_NAME = "catm";
-// v3: layout changed from single audio.mp4 to HLS init.mp4 + seg-N.m4s +
-// playlist.m3u8. Old sessions are wiped on upgrade — no migration.
-const DB_VERSION = 3;
+// v6: past short-lived dev versions 4/5 so browsers that opened those still upgrade.
+const DB_VERSION = 6;
 
 let dbPromise: Promise<IDBPDatabase<CatmDB>> | null = null;
 
@@ -189,10 +188,8 @@ export async function writePlaylist(
   ended: boolean,
 ): Promise<void> {
   const dir = await sessionDir(id);
-  const targetDuration = Math.max(
-    1,
-    Math.ceil(segments.reduce((m, s) => Math.max(m, s.durationSec), 1)),
-  );
+  // TARGETDURATION:1 makes hls.js poll the playlist about once per second.
+  const targetDuration = 1;
   const lines: string[] = [
     "#EXTM3U",
     "#EXT-X-VERSION:7",

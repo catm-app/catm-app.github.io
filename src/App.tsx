@@ -124,12 +124,17 @@ interface ActiveSynth {
   sessionId: string;
   segments: SegmentEntry[];
   totalDuration: number;
-  firstFragmentSeen: boolean;
+  playbackStarted: boolean;
   cancelled: boolean;
   chunkDurations: number[];
   resolve: () => void;
   reject: (err: Error) => void;
+  pendingWrites: Promise<void>;
 }
+
+// Mount after this many segments so hls.js's first playlist read prefetches
+// the whole window — otherwise audio starts before the buffer is filled.
+const PLAYBACK_BUFFER_SEGMENTS = 3;
 
 const SYNTH_CANCELLED = "__catm_synth_cancelled__";
 
@@ -339,20 +344,21 @@ export function App(): React.JSX.Element {
       if (msg.type === "fragment-media") {
         const active = activeSynthsRef.current.get(msg.txnId);
         if (!active || active.cancelled) return;
-        void (async () => {
+        active.pendingWrites = active.pendingWrites.then(async () => {
+          if (active.cancelled) return;
           await writeSegment(active.sessionId, msg.index, msg.bytes);
           if (active.cancelled) return;
           active.segments.push({ index: msg.index, durationSec: msg.durationSec });
           active.totalDuration += msg.durationSec;
           await writePlaylist(active.sessionId, active.segments, false);
-          if (!active.firstFragmentSeen) {
-            active.firstFragmentSeen = true;
+          if (!active.playbackStarted && active.segments.length >= PLAYBACK_BUFFER_SEGMENTS) {
+            active.playbackStarted = true;
             setDoc((d) =>
               d.id === active.sessionId ? { ...d, hasAudio: true, audioVoice: voice } : d,
             );
             setPlayToken((t) => t + 1);
           }
-        })();
+        });
         return;
       }
       if (msg.type === "chunk-encoded") {
@@ -375,9 +381,18 @@ export function App(): React.JSX.Element {
           return;
         }
         void (async () => {
+          // Drain in-flight fragment-media writes before sealing the playlist.
+          await active.pendingWrites;
           await writePlaylist(active.sessionId, active.segments, true);
           await finalizeDuration(active.sessionId, active.totalDuration);
           await finalizeChunkDurations(active.sessionId, active.chunkDurations);
+          if (!active.playbackStarted && active.segments.length > 0) {
+            active.playbackStarted = true;
+            setDoc((d) =>
+              d.id === active.sessionId ? { ...d, hasAudio: true, audioVoice: voice } : d,
+            );
+            setPlayToken((t) => t + 1);
+          }
           await refreshLibrary();
           setLiveChunkDurations(null);
           active.resolve();
@@ -491,11 +506,12 @@ export function App(): React.JSX.Element {
         sessionId,
         segments: [],
         totalDuration: 0,
-        firstFragmentSeen: false,
+        playbackStarted: false,
         cancelled: false,
         chunkDurations: [],
         resolve,
         reject,
+        pendingWrites: Promise.resolve(),
       });
     });
     w.postMessage({ type: "synth-start", txnId, voice } as InMsg);

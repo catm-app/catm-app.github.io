@@ -36,6 +36,16 @@ describe("chunkText", () => {
     const out = chunkText("Dr. Smith arrived. He said hello.", 100);
     expect(out).toEqual(["Dr. Smith arrived. He said hello."]);
   });
+
+  it("treats bullet-style line breaks as sentence boundaries", () => {
+    const out = chunkText("Apples\nBananas\nCherries.", 500);
+    expect(out).toEqual(["Apples. Bananas. Cherries."]);
+  });
+
+  it("keeps existing terminal punctuation untouched across newlines", () => {
+    const out = chunkText("First!\nSecond?\nThird.", 500);
+    expect(out).toEqual(["First! Second? Third."]);
+  });
 });
 
 describe("locateChunks", () => {

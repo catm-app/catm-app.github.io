@@ -11,7 +11,10 @@ export function chunkText(text: string, maxChars: number): string[] {
   const segmenter = new Intl.Segmenter(undefined, { granularity: "sentence" });
   const chunks: string[] = [];
   for (const paragraph of text.split(/\n{2,}/)) {
-    const trimmed = paragraph.trim();
+    // Promote bare newlines after unpunctuated lines to sentence breaks —
+    // otherwise bullet lists collapse into one run-on and Kokoro drops tokens.
+    const sentencized = paragraph.replace(/([^.!?:;])(\s*\n+)/g, "$1.$2");
+    const trimmed = sentencized.trim();
     if (!trimmed) continue;
     const sentences = Array.from(segmenter.segment(trimmed), (s) => s.segment.trim()).filter(
       (s) => s.length > 0,
