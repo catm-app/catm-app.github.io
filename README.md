@@ -1,8 +1,10 @@
 # catm — come and talk to me
 
+**Try it →** [catm-app.github.io](https://catm-app.github.io/)
+
 A 100% in-browser long-form text-to-speech reader. Paste a long document, pick a voice, get a navigable audiobook. Synthesis runs locally on your machine — no server, no upload, no account.
 
-The Kokoro 82M TTS model is downloaded once into your browser's HTTP cache (~80 MB) and run via ONNX Runtime Web (WebGPU when available, WASM fallback). After the first visit, catm works fully offline as an installable PWA.
+The Kokoro 82M TTS model is downloaded once into your browser's HTTP cache (~310 MB) and run via ONNX Runtime Web (WebGPU when available, WASM fallback). After the first visit, catm works fully offline as an installable PWA.
 
 ## Highlights
 
@@ -42,6 +44,12 @@ Other scripts:
 `src/App.tsx` owns the state and drives a Web Worker (`src/worker/kokoro.worker.ts`) that runs Kokoro. Text is streamed sentence-by-sentence through kokoro-js (with a phoneme-token-aware splitter that respects Kokoro's 510-token input cap), each sentence is synthesised to PCM, fed through a WebCodecs AAC encoder into fragmented MP4, and written to OPFS as live HLS (`init.mp4` + `seg-N.m4s` + a continually-updated `playlist.m3u8`). `hls.js` plays it back via a custom `opfs://` loader. Session metadata lives in IndexedDB; the audio bytes live in OPFS. The unified service worker (`src/sw.ts`) handles COI headers, app-shell precache, the Kokoro model cache, and an offline navigation fallback.
 
 See [`CLAUDE.md`](./CLAUDE.md) for the deeper map (storage layers, worker concurrency invariant, update flow, PWA ingest).
+
+## Browser extension
+
+`extension/` is a small Chrome MV3 extension that adds a right-click **"Send selection to catm"** entry. Highlight text on any page, right-click, and the selection is opened in catm via the PWA's `share_target` (reusing an existing catm tab if one is open). Clicking the toolbar icon opens catm directly. The extension only requests permission for `catm-app.github.io` — it never reads page contents.
+
+To load it: open `chrome://extensions`, turn on Developer mode, **Load unpacked**, and pick the `extension/` directory.
 
 ## Privacy
 

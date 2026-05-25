@@ -3,6 +3,17 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "description": "100% in-browser long-form text-to-speech reader. Kokoro 82M TTS via ONNX Runtime Web (WebGPU/WASM). Installable PWA, no server.",
+  "author": "Alain Brown",
+  "license": "MIT",
+  "homepage": "https://catm-app.github.io/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/catm-app/catm-app.github.io.git"
+  },
+  "bugs": {
+    "url": "https://github.com/catm-app/catm-app.github.io/issues"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
