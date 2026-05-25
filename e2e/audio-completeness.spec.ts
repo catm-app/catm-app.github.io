@@ -17,6 +17,37 @@ async function clearStorage(page: Page): Promise<void> {
   await page.reload();
 }
 
+// Wait until the encoder has written #EXT-X-ENDLIST to playlist.m3u8. The
+// worker writes that marker as the final step of `encoder.finish()`, so its
+// presence proves all `seg-N.m4s` writes and the last playlist rewrite have
+// landed in OPFS. Without this, reads can hit a partially-written session.
+async function waitForSessionFinalized(page: Page, timeoutMs = 30_000): Promise<void> {
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(async () => {
+          try {
+            const root = await navigator.storage.getDirectory();
+            const sessions = await root.getDirectoryHandle("sessions");
+            for await (const handle of (
+              sessions as unknown as { values(): AsyncIterable<FileSystemHandle> }
+            ).values()) {
+              if (handle.kind !== "directory") continue;
+              const dir = handle as FileSystemDirectoryHandle;
+              const file = await dir.getFileHandle("playlist.m3u8");
+              const text = await (await file.getFile()).text();
+              if (text.includes("#EXT-X-ENDLIST")) return true;
+            }
+            return false;
+          } catch {
+            return false;
+          }
+        }),
+      { timeout: timeoutMs },
+    )
+    .toBe(true);
+}
+
 async function decodeSessionAudio(page: Page): Promise<{ duration: number; samples: number }> {
   return page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
@@ -88,7 +119,11 @@ const cases: { name: string; text: string }[] = [
 ];
 
 test("playback covers the entire saved audio without forward-skipping", async ({ page }) => {
-  test.setTimeout(4 * 60 * 1000);
+  // 8 min budget: this is typically the first test in the file, so on a cold
+  // CI runner it pays the full model-download + WebGPU-shader-compile cost
+  // before any synthesis even starts. Subsequent tests in the file finish in
+  // ~10-30s because the model cache is warm.
+  test.setTimeout(8 * 60 * 1000);
   await clearStorage(page);
   await expect(page.getByText(/Ready · paste/i)).toBeVisible({ timeout: 3 * 60 * 1000 });
 
@@ -125,9 +160,16 @@ test("playback covers the entire saved audio without forward-skipping", async ({
   await page.getByTestId("speak").click();
 
   await expect(page.getByText(/^(Generate|Save & read)/)).toBeVisible({ timeout: 120_000 });
-  await page.waitForTimeout(500);
 
   const audio = page.getByTestId("audio");
+  // Wait for the audio element to actually have a usable duration before the
+  // playback loop starts — the status flip happens before the final hls.js
+  // attach lands.
+  await expect
+    .poll(async () => audio.evaluate((el) => (el as HTMLAudioElement).duration), {
+      timeout: 30_000,
+    })
+    .toBeGreaterThan(0);
 
   // Record the playhead approximately every 100 ms during playback. Detect
   // any forward jump larger than 0.5 s (which would indicate hls.js skipping
@@ -191,7 +233,7 @@ for (const c of cases) {
     await page.getByTestId("speak").click();
 
     await expect(page.getByText(/^(Generate|Save & read)/)).toBeVisible({ timeout: 120_000 });
-    await page.waitForTimeout(500);
+    await waitForSessionFinalized(page);
 
     const { duration, samples } = await decodeSessionAudio(page);
     const words = wordsOf(c.text);
