@@ -1,0 +1,46 @@
+# Runs unit tests (Vitest) and the full Playwright e2e suite on every push
+# and pull request.
+#
+# Runner choice: macos-14 (Apple Silicon) so the e2e tests can use WebGPU via
+# Metal — Kokoro synthesis falls back to WASM without it, which works but is
+# slow enough to make CI runs unpleasant. macOS minutes are free for public
+# repos; if this repo is ever made private, switch to ubuntu-latest (WASM
+# fallback) or accept the 10x minute multiplier.
+
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Unit tests
+        run: npm test
+      - name: E2E tests
+        run: npm run e2e
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
