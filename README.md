@@ -2,6 +2,10 @@
 
 **Try it →** [catm-app.github.io](https://catm-app.github.io/)
 
+<p align="center">
+  <img src="./docs/demo.gif" alt="catm — paste text, pick a voice, listen — everything runs in the browser" width="720" />
+</p>
+
 A 100% in-browser long-form text-to-speech reader. Paste a long document, pick a voice, get a navigable audiobook. Synthesis runs locally on your machine — no server, no upload, no account.
 
 The Kokoro 82M TTS model is downloaded once into your browser's HTTP cache (~310 MB) and run via ONNX Runtime Web (WebGPU when available, WASM fallback). After the first visit, catm works fully offline as an installable PWA.
