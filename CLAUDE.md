@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run dev` — Vite dev server on http://localhost:5173
 - `npm run build` — typecheck (`tsc -b`) + `vite build` to `dist/`
 - `npm run lint` — Biome check (lint + format diff). `npm run format` to autoformat.
-- `npm test` — Vitest (node env, runs `src/**/*.test.ts{,x}`). `npm run test:watch` for watch mode. Single file: `npx vitest run src/textChunk.test.ts`.
+- `npm test` — Vitest (node env, runs `src/**/*.test.ts{,x}`). `npm run test:watch` for watch mode. Single file: `npx vitest run src/textChunk.test.ts`. Notable suites: `src/textChunk.test.ts` (highlight chunker) and `src/worker/splitToFit.test.ts` (phoneme-token splitter).
 - `npm run e2e` — Playwright (Chromium only, single worker, 5-min test timeout). Reuses an existing dev server on :5173 if running; otherwise spawns one. Single test: `npx playwright test -g "synth saves session"`.
 - `npm run icons` — regenerate the PNG icon set (192/512/maskable/apple-touch) from `public/favicon.svg` via `scripts/generate-icons.mjs` (sharp). Run after touching the SVG and commit the outputs.
 
@@ -24,31 +24,40 @@ The app is one React surface (`src/App.tsx`) that owns nearly all state and driv
 ### Three storage layers
 
 1. **`localStorage`** — onboarding flag (`catm:onboarded`), voice preference (`catm:voice`), playback speed (`catm:speed`).
-2. **IndexedDB (`catm` DB, store `sessions`)** — session metadata (`SessionMeta`: id, title, sourceText, duration, voice, etc.). Schema is at `DB_VERSION = 3`; **upgrades drop the store and wipe OPFS — there is no migration path**. Bumping the version is a data-loss operation by design (the HLS layout replaced an earlier single-mp4 layout).
+2. **IndexedDB (`catm` DB, store `sessions`)** — session metadata (`SessionMeta`: id, title, sourceText, duration, voice, plus `chunkDurations`/`chunkTexts` used by `ReaderView` to highlight the source text as audio plays). Schema is at `DB_VERSION = 6`; **upgrades drop the store and wipe OPFS — there is no migration path**. Bumping the version is a data-loss operation by design (the HLS layout replaced an earlier single-mp4 layout).
 3. **OPFS (`sessions/<id>/`)** — per-session audio as HLS: `init.mp4`, `seg-N.m4s` fragments, and a live `playlist.m3u8`. The Kokoro model weights themselves live in the browser's HTTP cache (Cache Storage), not OPFS.
 
 `src/storage/sessionStore.ts` is the single entry point for both IDB and OPFS.
 
 ### Synthesis pipeline (progressive HLS)
 
-Long text is sliced into ~500-char chunks (`src/textChunk.ts`, sentence-boundary aware). The flow:
+The full source text is posted to the worker in one message; the worker streams it out sentence-by-sentence using kokoro-js's `TextSplitterStream`, then further splits each sentence to fit Kokoro's 510-phoneme-token input cap (`splitToFit` in `src/worker/splitToFit.ts`, measured via `phonemizer` + the model's own tokenizer). The flow:
 
-1. App posts `synth-start` → `synth-chunk` × N → `synth-end` to `src/worker/kokoro.worker.ts`.
-2. The worker drives `KokoroTTS.generate()` per chunk, feeding PCM into `ProgressiveEncoder` (`src/hls/encode.ts`), which upsamples 24 kHz → 48 kHz (linear 2×, valid since the source is band-limited) and AAC-encodes into fragmented MP4 via WebCodecs `AudioEncoder` + `mp4-muxer`'s `StreamTarget`.
-3. The encoder emits a single `init.mp4` then one `seg-N.m4s` per chunk back to the main thread, which writes them to OPFS and rewrites `playlist.m3u8` after every segment (PLAYLIST-TYPE `EVENT`, no `ENDLIST` until finalised).
+1. App posts `synth-start` → `synth-text` (one message carrying the full text) → `synth-end` to `src/worker/kokoro.worker.ts`. `synth-cancel` is processed out-of-band (see concurrency invariant).
+2. The worker iterates sentences, calls `KokoroTTS.generate()` per piece, and feeds PCM into `ProgressiveEncoder` (`src/hls/encode.ts`), which upsamples 24 kHz → 48 kHz (linear 2×, valid since the source is band-limited) and AAC-encodes into fragmented MP4 via WebCodecs `AudioEncoder` + `mp4-muxer`'s `StreamTarget`. One emitted sentence = one `chunk-encoded` event back to the App carrying that sentence's text + duration, which is what gets persisted as `chunkTexts`/`chunkDurations`.
+3. The encoder emits a single `init.mp4` then one `seg-N.m4s` per sentence back to the main thread, which writes them to OPFS and rewrites `playlist.m3u8` after every segment (PLAYLIST-TYPE `EVENT`, no `ENDLIST` until finalised). Playback isn't mounted until at least `PLAYBACK_BUFFER_SEGMENTS` (3) segments exist, so hls.js's first playlist read prefetches a useful window.
 4. `ReaderView` attaches `hls.js` to an `<audio>` element via a custom `OpfsLoader` (`src/hls/playback.ts`) that resolves `opfs://{sessionId}/{filename}` URLs against `readSessionFile`. hls.js's normal EVENT-playlist reload cadence handles the live append.
+
+`src/textChunk.ts` is **not** in the synthesis path — it's used only by `ReaderView` (`locateChunks`) to map `audio.currentTime` back onto the source text for highlight rendering, using the persisted `chunkTexts`/`chunkDurations`.
+
+### Worker structure
+
+The worker is split into two layers:
+
+- **`src/worker/workerProtocol.ts`** — a pure, browser-API-free state machine (`createHandlers`) that owns the `InMsg`/`OutMsg` protocol, the serialised `workQueue`, and the `cancelledTxnIds`/`erroredTxnIds` bookkeeping. Dependencies (load, synthesize, stream, createEncoder, post) are injected, so it's unit-testable under Vitest's node env.
+- **`src/worker/kokoro.worker.ts`** — the actual `Worker` entrypoint. Wires the state machine to `KokoroSynthesisClient` (`src/worker/synthesisModel.ts`, the kokoro-js wrapper that owns model load + sentence streaming) and `ProgressiveEncoder`, and posts `ready`/`progress`/`error` back to the App.
 
 ### Worker concurrency invariant
 
-`kokoro.worker.ts` serialises all incoming messages onto a single promise chain (`workQueue`). This is load-bearing: Chrome dispatches messages while the previous handler awaits, and without the chain a `synth-chunk` resume could race a later `synth-end` tearing down the encoder. Do not parallelise the handler.
+`workerProtocol.ts` serialises all incoming messages onto a single promise chain (`workQueue`). This is load-bearing: Chrome dispatches messages while the previous handler awaits, and without the chain a `synth-text` resume could race a later `synth-end` tearing down the encoder. `synth-cancel` is the **only** message that bypasses the queue — it must, otherwise cancel would sit behind the very chunks it's trying to abort. Do not parallelise the handler.
 
 ### Worker boot, devices, progress
 
-The worker prefers `device: "webgpu"` + `fp32` and falls back to `wasm` + `q8`. Progress events from kokoro-js are forwarded raw; the App aggregates per-file `{loaded, total}` into a single download bar. The worker is **not** started until the user clicks "Download voice" on first launch — onboarding is gated by `catm:onboarded` in localStorage. "Delete model" clears that flag, terminates the worker, and purges any Cache Storage keys containing `kokoro`/`transformers`/`hf`.
+The worker picks `device: "webgpu"` when `navigator.gpu` exists, otherwise `wasm`; the default dtype is `fp32`. The worker starts at mount and posts a `warmup` to load the model. Progress events from kokoro-js are forwarded raw; the App aggregates per-file `{loaded, total}` into a single download bar, and the first `ready` after a fresh install flips `catm:onboarded` in localStorage. "Delete everything" (the reset action, confirmed via a single `ConfirmDialog`) terminates the worker, purges any Cache Storage keys containing `kokoro`/`transformers`/`hf` (and the `catm-model-v1` cache), wipes IDB sessions + OPFS audio, clears the onboarding/voice prefs, and restarts the worker so the model re-downloads.
 
 ### Voice preview vs. full read
 
-`type: "synth"` is a one-shot path used only by the voice-preview chip — it returns raw PCM, which the main thread encodes with `encodePcmToCompleteMp4` (the non-streaming sibling of `ProgressiveEncoder`) for a quick `<audio>` blob. The full read path uses the `synth-start`/`chunk`/`end` streaming protocol described above.
+`type: "synth"` is a one-shot path used only by the voice-preview chip — it returns raw PCM, which the main thread encodes with `encodePcmToCompleteMp4` (the non-streaming sibling of `ProgressiveEncoder`) for a quick `<audio>` blob. The full read path uses the `synth-start` / `synth-text` / `synth-end` streaming protocol described above.
 
 ### App-level state shape
 

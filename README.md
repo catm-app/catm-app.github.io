@@ -39,7 +39,7 @@ Other scripts:
 
 ## Architecture in one paragraph
 
-`src/App.tsx` owns the state and drives a Web Worker (`src/worker/kokoro.worker.ts`) that runs Kokoro. Long text is chunked (~500 chars, sentence-boundary aware) by `src/textChunk.ts`, synthesised chunk-by-chunk, fed through a WebCodecs AAC encoder into fragmented MP4, and written to OPFS as live HLS (`init.mp4` + `seg-N.m4s` + a continually-updated `playlist.m3u8`). `hls.js` plays it back via a custom `opfs://` loader. Session metadata lives in IndexedDB; the audio bytes live in OPFS. The unified service worker (`src/sw.ts`) handles COI headers, app-shell precache, the Kokoro model cache, and an offline navigation fallback.
+`src/App.tsx` owns the state and drives a Web Worker (`src/worker/kokoro.worker.ts`) that runs Kokoro. Text is streamed sentence-by-sentence through kokoro-js (with a phoneme-token-aware splitter that respects Kokoro's 510-token input cap), each sentence is synthesised to PCM, fed through a WebCodecs AAC encoder into fragmented MP4, and written to OPFS as live HLS (`init.mp4` + `seg-N.m4s` + a continually-updated `playlist.m3u8`). `hls.js` plays it back via a custom `opfs://` loader. Session metadata lives in IndexedDB; the audio bytes live in OPFS. The unified service worker (`src/sw.ts`) handles COI headers, app-shell precache, the Kokoro model cache, and an offline navigation fallback.
 
 See [`CLAUDE.md`](./CLAUDE.md) for the deeper map (storage layers, worker concurrency invariant, update flow, PWA ingest).
 

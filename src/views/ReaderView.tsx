@@ -3,7 +3,7 @@ import { AudioPlayer } from "../components/AudioPlayer";
 import { VoiceChip } from "../components/VoiceChip";
 import { attachHlsToAudio } from "../hls/playback";
 import type { SessionMeta } from "../storage/sessionStore";
-import { CHUNK_CHARS, chunkText, locateChunks } from "../textChunk";
+import { locateChunks } from "../textChunk";
 import type { AppStatus, DocState } from "../types";
 import type { VoiceId } from "../worker/kokoro.worker";
 
@@ -39,6 +39,7 @@ interface ReaderViewProps {
   onRename: (id: string, title: string) => void;
   onChangeVoice: (v: VoiceId) => void;
   liveChunkDurations: number[] | null;
+  liveChunkTexts: string[] | null;
   onPreviewVoice: (v: VoiceId) => void;
   onExport: (id: string) => void;
 }
@@ -58,6 +59,7 @@ export function ReaderView(props: ReaderViewProps): React.JSX.Element {
     onCancel,
     onRename,
     liveChunkDurations,
+    liveChunkTexts,
     voice,
     previewVoice,
     onChangeVoice,
@@ -131,11 +133,11 @@ export function ReaderView(props: ReaderViewProps): React.JSX.Element {
   }, [doc.id]);
 
   const durations = liveChunkDurations ?? session?.chunkDurations ?? null;
+  const texts = liveChunkTexts ?? session?.chunkTexts ?? null;
   const activeRange = useMemo(() => {
-    if (!durations?.length || !doc.sourceText) return null;
-    const chunks = chunkText(doc.sourceText, CHUNK_CHARS);
-    if (chunks.length === 0) return null;
-    const ranges = locateChunks(doc.sourceText, chunks);
+    if (!durations?.length || !texts?.length || !doc.sourceText) return null;
+    const ranges = locateChunks(doc.sourceText, texts);
+    if (ranges.length === 0) return null;
     const cumulative: number[] = [];
     let sum = 0;
     for (const d of durations) {
@@ -145,7 +147,7 @@ export function ReaderView(props: ReaderViewProps): React.JSX.Element {
     let idx = cumulative.findIndex((t) => currentTime < t);
     if (idx === -1) idx = cumulative.length - 1;
     return ranges[idx] ?? null;
-  }, [doc.sourceText, durations, currentTime]);
+  }, [doc.sourceText, durations, texts, currentTime]);
 
   const recordLabel = isSynth
     ? "Cancel"

@@ -98,6 +98,8 @@ async function load(): Promise<DeviceInfo> {
 const handlers = createHandlers<VoiceId>({
   load,
   synthesizePcm: (text, voice) => synthClient.synthesize(text, voice),
+  streamSentences: (text, voice, onSentence, isCancelled) =>
+    synthClient.stream(text, voice, onSentence, isCancelled),
   createEncoder: (sampleRate, onInit, onSegment) =>
     new ProgressiveEncoder(sampleRate, onInit, onSegment),
   post: (msg, transfer = []) => post(msg, transfer),

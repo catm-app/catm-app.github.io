@@ -215,7 +215,7 @@ export function Rail({
         </div>
         {storage?.persisted ? <span className="foot-badge">persistent</span> : null}
         <button type="button" className="ghost-danger" onClick={onReset} data-testid="reset">
-          Reset
+          Delete everything
         </button>
       </section>
 

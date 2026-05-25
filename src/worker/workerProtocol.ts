@@ -10,7 +10,7 @@ export type InMsg<V extends string = VoiceId> =
   | { type: "warmup" }
   | { type: "synth"; id: number; text: string; voice?: V }
   | { type: "synth-start"; txnId: number; voice?: V }
-  | { type: "synth-chunk"; txnId: number; text: string }
+  | { type: "synth-text"; txnId: number; text: string }
   | { type: "synth-end"; txnId: number }
   | { type: "synth-cancel"; txnId: number };
 
@@ -41,7 +41,7 @@ export type OutMsg =
     }
   | { type: "synth-end-ok"; txnId: number; wallMs: number; audioSec: number }
   | { type: "synth-cancelled"; txnId: number }
-  | { type: "chunk-encoded"; txnId: number; durationSec: number; samples: number }
+  | { type: "chunk-encoded"; txnId: number; text: string; durationSec: number; samples: number }
   | {
       type: "progress";
       status: string;
@@ -59,6 +59,12 @@ export interface Encoder {
 export interface WorkerDeps<V extends string = VoiceId> {
   load: () => Promise<DeviceInfo>;
   synthesizePcm: (text: string, voice: V) => Promise<Float32Array>;
+  streamSentences: (
+    text: string,
+    voice: V,
+    onSentence: (s: { text: string; pcm: Float32Array }) => Promise<void>,
+    isCancelled: () => boolean,
+  ) => Promise<void>;
   createEncoder: (
     sampleRate: number,
     onInit: (bytes: Uint8Array) => void,
@@ -144,22 +150,29 @@ export function createHandlers<V extends string = VoiceId>(deps: WorkerDeps<V>):
         stream = { txnId, voice, encoder, startMs: performance.now(), audioSec: 0 };
         return;
       }
-      if (msg.type === "synth-chunk") {
+      if (msg.type === "synth-text") {
         if (cancelledTxnIds.has(msg.txnId)) return;
         if (erroredTxnIds.has(msg.txnId)) return;
         if (!stream || stream.txnId !== msg.txnId) throw new Error("no active synth stream");
-        const pcm = await deps.synthesizePcm(msg.text, stream.voice);
-        // Re-check: user may have cancelled while synthesizePcm awaited.
-        if (cancelledTxnIds.has(msg.txnId)) return;
-        await stream.encoder.pushChunk(pcm);
-        const durationSec = pcm.length / deps.sampleRate;
-        stream.audioSec += durationSec;
-        deps.post({
-          type: "chunk-encoded",
-          txnId: msg.txnId,
-          durationSec,
-          samples: pcm.length,
-        });
+        const active = stream;
+        await deps.streamSentences(
+          msg.text,
+          stream.voice,
+          async ({ text: sentenceText, pcm }) => {
+            if (cancelledTxnIds.has(msg.txnId)) return;
+            await active.encoder.pushChunk(pcm);
+            const durationSec = pcm.length / deps.sampleRate;
+            active.audioSec += durationSec;
+            deps.post({
+              type: "chunk-encoded",
+              txnId: msg.txnId,
+              text: sentenceText,
+              durationSec,
+              samples: pcm.length,
+            });
+          },
+          () => cancelledTxnIds.has(msg.txnId),
+        );
         return;
       }
       if (msg.type === "synth-end") {

@@ -3,7 +3,6 @@ import { ConfirmDialog } from "./components/ConfirmDialog";
 import { DiscardDialog } from "./components/DiscardDialog";
 import { Rail } from "./components/Rail";
 import { encodePcmToCompleteMp4 } from "./hls/encode";
-import { BASIC_TIER, formatMb } from "./modelConfig";
 import { UpdateBanner } from "./pwa/UpdateBanner";
 import { type IngestedDraft, consumeShareTarget, onFileLaunch } from "./pwa/ingest";
 import {
@@ -13,7 +12,7 @@ import {
   buildSessionExport,
   createSession,
   deleteSession,
-  finalizeChunkDurations,
+  finalizeChunks,
   finalizeDuration,
   listSessions,
   measureStorage,
@@ -23,7 +22,6 @@ import {
   writePlaylist,
   writeSegment,
 } from "./storage/sessionStore";
-import { CHUNK_CHARS, chunkText } from "./textChunk";
 import type { AppStatus, DocState } from "./types";
 import { OnboardingView } from "./views/OnboardingView";
 import { ReaderView } from "./views/ReaderView";
@@ -127,6 +125,7 @@ interface ActiveSynth {
   playbackStarted: boolean;
   cancelled: boolean;
   chunkDurations: number[];
+  chunkTexts: string[];
   resolve: () => void;
   reject: (err: Error) => void;
   pendingWrites: Promise<void>;
@@ -157,6 +156,7 @@ export function App(): React.JSX.Element {
   const [confirmReset, setConfirmReset] = useState(false);
   const [voice, setVoice] = useState<VoiceId>(() => readVoice());
   const [liveChunkDurations, setLiveChunkDurations] = useState<number[] | null>(null);
+  const [liveChunkTexts, setLiveChunkTexts] = useState<string[] | null>(null);
   const [previewVoice, setPreviewVoice] = useState<VoiceId | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -366,7 +366,9 @@ export function App(): React.JSX.Element {
         const active = activeSynthsRef.current.get(msg.txnId);
         if (!active || active.cancelled) return;
         active.chunkDurations.push(msg.durationSec);
+        active.chunkTexts.push(msg.text);
         setLiveChunkDurations([...active.chunkDurations]);
+        setLiveChunkTexts([...active.chunkTexts]);
         return;
       }
       if (msg.type === "synth-end-ok") {
@@ -385,7 +387,7 @@ export function App(): React.JSX.Element {
           await active.pendingWrites;
           await writePlaylist(active.sessionId, active.segments, true);
           await finalizeDuration(active.sessionId, active.totalDuration);
-          await finalizeChunkDurations(active.sessionId, active.chunkDurations);
+          await finalizeChunks(active.sessionId, active.chunkDurations, active.chunkTexts);
           if (!active.playbackStarted && active.segments.length > 0) {
             active.playbackStarted = true;
             setDoc((d) =>
@@ -395,6 +397,7 @@ export function App(): React.JSX.Element {
           }
           await refreshLibrary();
           setLiveChunkDurations(null);
+          setLiveChunkTexts(null);
           active.resolve();
         })();
         return;
@@ -500,7 +503,6 @@ export function App(): React.JSX.Element {
     });
 
     const txnId = nextTxnIdRef.current++;
-    const chunks = chunkText(trimmed, CHUNK_CHARS);
     const completion = new Promise<void>((resolve, reject) => {
       activeSynthsRef.current.set(txnId, {
         sessionId,
@@ -509,13 +511,14 @@ export function App(): React.JSX.Element {
         playbackStarted: false,
         cancelled: false,
         chunkDurations: [],
+        chunkTexts: [],
         resolve,
         reject,
         pendingWrites: Promise.resolve(),
       });
     });
     w.postMessage({ type: "synth-start", txnId, voice } as InMsg);
-    for (const c of chunks) w.postMessage({ type: "synth-chunk", txnId, text: c } as InMsg);
+    w.postMessage({ type: "synth-text", txnId, text: trimmed } as InMsg);
     w.postMessage({ type: "synth-end", txnId } as InMsg);
     try {
       await completion;
@@ -728,6 +731,7 @@ export function App(): React.JSX.Element {
             onCancel={onCancelSynth}
             onRename={(id, t) => void onRenameSession(id, t)}
             liveChunkDurations={liveChunkDurations}
+            liveChunkTexts={liveChunkTexts}
             onChangeVoice={onChangeVoice}
             onPreviewVoice={(v) => void onPreviewVoice(v)}
             onExport={(id) => void onExportSession(id)}
@@ -739,17 +743,11 @@ export function App(): React.JSX.Element {
         <ConfirmDialog
           title={
             <>
-              Reset <em>catm</em>?
+              Delete everything in <em>catm</em>?
             </>
           }
-          body={
-            <>
-              This will delete the voice model (~{formatMb(BASIC_TIER.sizeMb)}), all{" "}
-              <b>{sessions.length}</b> saved {sessions.length === 1 ? "recording" : "recordings"},
-              and your preferences. The voice will re-download on next launch. There is no undo.
-            </>
-          }
-          confirmLabel="Reset"
+          body={<>This wipes all local data for catm. There is no undo.</>}
+          confirmLabel="Delete everything"
           tone="danger"
           onCancel={() => setConfirmReset(false)}
           onConfirm={() => void onReset()}

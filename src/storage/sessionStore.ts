@@ -20,6 +20,10 @@ export interface SessionMeta {
   // audio.currentTime back to a chunk of source text for highlighting.
   // Older records lack this and skip the highlight feature.
   chunkDurations?: number[];
+  // Source-text slice for each emitted audio chunk, in chunk order. Mirrors
+  // chunkDurations 1:1 and lets the highlighter map currentTime → text range
+  // without re-running our own chunker.
+  chunkTexts?: string[];
 }
 
 const DEFAULT_MODEL = "kokoro-82m-low";
@@ -214,11 +218,15 @@ export async function finalizeDuration(id: string, durationSec: number): Promise
   await database.put("sessions", { ...existing, durationSec });
 }
 
-export async function finalizeChunkDurations(id: string, chunkDurations: number[]): Promise<void> {
+export async function finalizeChunks(
+  id: string,
+  chunkDurations: number[],
+  chunkTexts: string[],
+): Promise<void> {
   const database = await db();
   const existing = await database.get("sessions", id);
   if (!existing) return;
-  await database.put("sessions", { ...existing, chunkDurations });
+  await database.put("sessions", { ...existing, chunkDurations, chunkTexts });
 }
 
 export async function readSessionFile(id: string, name: string): Promise<Uint8Array | null> {
