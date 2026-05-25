@@ -119,26 +119,20 @@ const cases: { name: string; text: string }[] = [
 ];
 
 test("playback covers the entire saved audio without forward-skipping", async ({ page }) => {
-  // 8 min budget: this is typically the first test in the file, so on a cold
-  // CI runner it pays the full model-download + WebGPU-shader-compile cost
-  // before any synthesis even starts. Subsequent tests in the file finish in
-  // ~10-30s because the model cache is warm.
-  test.setTimeout(8 * 60 * 1000);
+  // 2 min budget: deliberately tight. If this hangs (last CI run ate a full
+  // 8 min without synth finishing), failing fast is more useful than failing
+  // slow — gives a clean signal without burning runner minutes on something
+  // that's stuck, not slow.
+  test.setTimeout(2 * 60 * 1000);
   await clearStorage(page);
   await expect(page.getByText(/Ready · paste/i)).toBeVisible({ timeout: 3 * 60 * 1000 });
 
-  // Mute the audio as soon as it appears so any pre-synth autoplay in CI
-  // doesn't trip the browser's audio-output guards. DO NOT set playbackRate
-  // here — the audio element attaches mid-synth (after
-  // PLAYBACK_BUFFER_SEGMENTS) and 8× consumption while segments are still
-  // being written live causes hls.js to underrun/retry and starve the worker
-  // on slower CI hardware. The playback-loop evaluate below sets rate=8
-  // after synth is fully done.
   await page.addInitScript(() => {
     const apply = () => {
       const el = document.querySelector('[data-testid="audio"]') as HTMLAudioElement | null;
       if (el) {
         el.muted = true;
+        el.playbackRate = 8; // run the test faster than real-time
         return true;
       }
       return false;
