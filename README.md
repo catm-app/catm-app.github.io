@@ -57,12 +57,7 @@ To load it: open `chrome://extensions`, turn on Developer mode, **Load unpacked*
 
 ## Privacy
 
-There is no server. Synthesis runs in your browser. The only network requests catm makes are:
-
-- The static app files from the host that served the page.
-- The Kokoro model weights from huggingface.co, fetched once and cached.
-
-Nothing about your text or audio is sent anywhere.
+Everything runs in your browser — no server, no upload, no account. Full policy at [catm-app.github.io/privacy.html](https://catm-app.github.io/privacy.html).
 
 ## License
 

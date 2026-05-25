@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#fafbfc" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0f1115" />
+    <meta name="robots" content="index, follow" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <title>catm — privacy</title>
+    <meta name="description" content="catm privacy policy. catm runs entirely in your browser — no servers, no accounts, no telemetry." />
+    <style>
+      :root {
+        --bg: #fafbfc;
+        --surface: #ffffff;
+        --ink-0: #0d0e12;
+        --ink-1: #2a2d35;
+        --ink-2: #585d6b;
+        --ink-3: #8c92a3;
+        --border: #e6e8ec;
+        --accent: #5b6cff;
+        --accent-end: #8a98ff;
+        --code-bg: #f4f5f7;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0f1115;
+          --surface: #161a21;
+          --ink-0: #f5f6f8;
+          --ink-1: #d8dbe2;
+          --ink-2: #9da3b1;
+          --ink-3: #6c7283;
+          --border: #2a303b;
+          --accent: #7a8aff;
+          --accent-end: #a8b3ff;
+          --code-bg: #1c2129;
+        }
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { height: 100%; }
+      body {
+        font-family: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+        background: var(--bg);
+        color: var(--ink-1);
+        -webkit-font-smoothing: antialiased;
+        letter-spacing: -0.005em;
+        line-height: 1.6;
+      }
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 56px 28px 96px;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding-bottom: 24px;
+        margin-bottom: 36px;
+        border-bottom: 1px solid var(--border);
+      }
+      header .mark {
+        width: 36px; height: 36px; flex: none;
+        border-radius: 10px;
+        background: linear-gradient(135deg, var(--accent), var(--accent-end));
+        display: inline-flex; align-items: center; justify-content: center;
+        color: #fff; font-weight: 800; font-size: 16px; letter-spacing: -0.04em;
+      }
+      header .name { font-weight: 700; font-size: 17px; color: var(--ink-0); letter-spacing: -0.02em; }
+      header .name span { color: var(--ink-3); font-weight: 500; }
+      h1 {
+        font-size: clamp(28px, 4vw, 36px);
+        line-height: 1.15;
+        letter-spacing: -0.025em;
+        color: var(--ink-0);
+        font-weight: 700;
+        margin-bottom: 8px;
+      }
+      .updated {
+        color: var(--ink-3);
+        font-size: 13px;
+        font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+        margin-bottom: 28px;
+      }
+      h2 {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--ink-0);
+        letter-spacing: -0.015em;
+        margin: 36px 0 12px;
+      }
+      p { margin: 0 0 14px; color: var(--ink-1); font-size: 15.5px; }
+      p + p { margin-top: 6px; }
+      ul { padding-left: 22px; margin: 0 0 18px; }
+      li { margin: 4px 0; font-size: 15.5px; color: var(--ink-1); }
+      strong { color: var(--ink-0); font-weight: 600; }
+      a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+      a:hover { text-decoration-thickness: 2px; }
+      code {
+        font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+        font-size: 0.9em;
+        background: var(--code-bg);
+        padding: 1px 6px;
+        border-radius: 4px;
+        color: var(--ink-0);
+      }
+      .lede {
+        color: var(--ink-2);
+        font-size: 17px;
+        line-height: 1.55;
+        margin-bottom: 32px;
+      }
+      footer {
+        margin-top: 56px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border);
+        font-size: 13px;
+        color: var(--ink-3);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <span class="mark" aria-hidden="true">c</span>
+        <span class="name">catm <span>· come and talk to me</span></span>
+      </header>
+
+      <h1>Privacy</h1>
+      <p class="updated">Last updated: 2026-05-25</p>
+
+      <p class="lede">
+        catm is designed so that everything happens on your device. No accounts, no servers, no telemetry. This page is the formal statement of that — for both the web app at <a href="https://catm-app.github.io/">catm-app.github.io</a> and the <strong>Send to catm</strong> Chrome extension.
+      </p>
+
+      <h2>Where things run</h2>
+      <p>
+        catm is a single-page web app served from GitHub Pages. After your first visit:
+      </p>
+      <ul>
+        <li>The app shell is cached locally as a Progressive Web App.</li>
+        <li>The Kokoro 82M text-to-speech model is downloaded once from <code>huggingface.co</code> and stored in your browser's HTTP cache (~310&nbsp;MB).</li>
+        <li>Synthesis runs in your browser via ONNX Runtime Web — WebGPU when available, multi-threaded WASM otherwise.</li>
+        <li>Text you paste, saved sessions, and the audio they produce live only on your device: session metadata in IndexedDB, audio fragments in the Origin Private File System (OPFS).</li>
+      </ul>
+      <p>
+        catm has no backend. No request ever leaves your browser carrying your text or your audio.
+      </p>
+
+      <h2>Network requests catm makes</h2>
+      <ul>
+        <li>Static app files from <code>catm-app.github.io</code> (GitHub Pages).</li>
+        <li>The one-time download of the Kokoro model from <code>huggingface.co</code>.</li>
+        <li>Nothing else.</li>
+      </ul>
+      <p>
+        There are no analytics, no error-reporting services, no third-party scripts, and no trackers.
+      </p>
+
+      <h2>The "Send to catm" Chrome extension</h2>
+      <p>
+        The extension exists only to make it easier to send text you are already reading to catm. It does these things:
+      </p>
+      <ul>
+        <li>Adds a context-menu entry, <strong>Send selection to catm</strong>, that appears when you right-click on selected text.</li>
+        <li>On click, opens <code>catm-app.github.io</code> with the selected text passed as a URL query parameter — along with the active tab's title and URL, so catm can show useful context.</li>
+        <li>Clicking the toolbar icon opens (or focuses) catm.</li>
+      </ul>
+      <p>It does <strong>not</strong>:</p>
+      <ul>
+        <li>Read any page contents on its own. The extension has no content scripts and no broad host permission. It only sees text you yourself select and then explicitly send via the context menu.</li>
+        <li>Communicate with any server. The selected text is passed to a new tab as a URL parameter; the extension itself makes no network requests.</li>
+        <li>Store anything. The extension does not use <code>chrome.storage</code>, cookies, or any other persistent state.</li>
+        <li>Sync anything between devices.</li>
+      </ul>
+      <p>
+        The only permissions it requests are <code>contextMenus</code> plus host access to <code>https://catm-app.github.io/*</code> — the latter so it can find and re-use an existing catm tab instead of opening duplicates.
+      </p>
+
+      <h2>How to delete your data</h2>
+      <ul>
+        <li><strong>Inside catm:</strong> use the <em>Delete everything</em> button. It purges IndexedDB sessions, OPFS audio, your onboarding and voice preferences, and the cached Kokoro model.</li>
+        <li><strong>From the browser:</strong> clear site data for <code>catm-app.github.io</code> in your browser settings.</li>
+        <li><strong>The extension:</strong> uninstall it from <code>chrome://extensions</code>. It has nothing else to clean up.</li>
+      </ul>
+
+      <h2>Children</h2>
+      <p>
+        catm is general-purpose. It does not knowingly collect personal information from children — because it does not collect personal information from anyone.
+      </p>
+
+      <h2>Changes to this policy</h2>
+      <p>
+        Material changes will be reflected in the "Last updated" date at the top of this page and in the project's commit history. The current and historical versions of this policy are public at the source-code link below.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        Source code, issues, and the change history for this policy live at <a href="https://github.com/catm-app/catm-app.github.io">github.com/catm-app/catm-app.github.io</a>.
+      </p>
+
+      <footer>
+        <a href="./">← back to catm</a>
+      </footer>
+    </main>
+  </body>
+</html>
