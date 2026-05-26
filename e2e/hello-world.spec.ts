@@ -25,7 +25,9 @@ test("synth saves session, sidebar persists across reload, delete clears", async
   test.setTimeout(4 * 60 * 1000);
   await clearStorage(page);
 
-  await expect(page.getByText(/Ready · paste/i)).toBeVisible({ timeout: 3 * 60 * 1000 });
+  await page.waitForFunction(() => document.documentElement.dataset.ttsDevice !== undefined, {
+    timeout: 3 * 60 * 1000,
+  });
 
   await page.getByLabel("Text").fill("Hello world. Storage milestone.");
   await page.getByTestId("speak").click();
@@ -43,7 +45,9 @@ test("synth saves session, sidebar persists across reload, delete clears", async
   await expect(page.getByTestId("library-row")).toHaveCount(1);
 
   await page.reload();
-  await expect(page.getByText(/Ready · paste/i)).toBeVisible({ timeout: 3 * 60 * 1000 });
+  await page.waitForFunction(() => document.documentElement.dataset.ttsDevice !== undefined, {
+    timeout: 3 * 60 * 1000,
+  });
   await expect(page.getByTestId("library-row")).toHaveCount(1);
 
   await page.getByTestId("library-play").first().click();
@@ -67,7 +71,9 @@ test("synth saves session, sidebar persists across reload, delete clears", async
 test("editing an open document re-synthesises in place (no duplicate row)", async ({ page }) => {
   test.setTimeout(4 * 60 * 1000);
   await clearStorage(page);
-  await expect(page.getByText(/Ready · paste/i)).toBeVisible({ timeout: 3 * 60 * 1000 });
+  await page.waitForFunction(() => document.documentElement.dataset.ttsDevice !== undefined, {
+    timeout: 3 * 60 * 1000,
+  });
 
   await page.getByLabel("Text").fill("First version.");
   await page.getByTestId("speak").click();
@@ -92,7 +98,9 @@ test("editing an open document re-synthesises in place (no duplicate row)", asyn
 
 test("voice chip opens popover and closes on outside click", async ({ page }) => {
   await clearStorage(page);
-  await expect(page.getByText(/Ready · paste/i)).toBeVisible({ timeout: 3 * 60 * 1000 });
+  await page.waitForFunction(() => document.documentElement.dataset.ttsDevice !== undefined, {
+    timeout: 3 * 60 * 1000,
+  });
 
   await page.getByTestId("voice-chip").click();
   await expect(page.getByRole("heading", { name: /Voice · English/i })).toBeVisible();
@@ -110,18 +118,22 @@ test("onboarding: auto-loading screen → ready stamp", async ({ page }) => {
 
   // Eventually reaches ready and shows the "Ready ★" stamp.
   await expect(page.getByTestId("ready-stamp")).toBeVisible({ timeout: 3 * 60 * 1000 });
-  await expect(page.getByText(/Ready · paste/i)).toBeVisible();
+  await page.waitForFunction(() => document.documentElement.dataset.ttsDevice !== undefined);
 
   // Onboarded flag persists — reload, the stamp is gone and we land straight in the editor.
   await page.reload();
-  await expect(page.getByText(/Ready · paste/i)).toBeVisible({ timeout: 60_000 });
+  await page.waitForFunction(() => document.documentElement.dataset.ttsDevice !== undefined, {
+    timeout: 60_000,
+  });
   await expect(page.getByTestId("ready-stamp")).toBeHidden();
 });
 
 test("opening and closing the voice popover does not autoplay the audio", async ({ page }) => {
   test.setTimeout(4 * 60 * 1000);
   await clearStorage(page);
-  await expect(page.getByText(/Ready · paste/i)).toBeVisible({ timeout: 3 * 60 * 1000 });
+  await page.waitForFunction(() => document.documentElement.dataset.ttsDevice !== undefined, {
+    timeout: 3 * 60 * 1000,
+  });
 
   await page.getByLabel("Text").fill("Round trip.");
   await page.getByTestId("speak").click();
@@ -147,7 +159,9 @@ test("opening and closing the voice popover does not autoplay the audio", async 
 test("library row shows the voice the session was recorded with", async ({ page }) => {
   test.setTimeout(4 * 60 * 1000);
   await clearStorage(page);
-  await expect(page.getByText(/Ready · paste/i)).toBeVisible({ timeout: 3 * 60 * 1000 });
+  await page.waitForFunction(() => document.documentElement.dataset.ttsDevice !== undefined, {
+    timeout: 3 * 60 * 1000,
+  });
 
   // Switch to am_michael via the inline voice chip.
   await page.getByTestId("voice-chip").click();
@@ -174,7 +188,9 @@ test("library row shows the voice the session was recorded with", async ({ page 
 
 test("voice picker selects and persists across reload", async ({ page }) => {
   await clearStorage(page);
-  await expect(page.getByText(/Ready · paste/i)).toBeVisible({ timeout: 3 * 60 * 1000 });
+  await page.waitForFunction(() => document.documentElement.dataset.ttsDevice !== undefined, {
+    timeout: 3 * 60 * 1000,
+  });
 
   await page.getByTestId("voice-chip").click();
   // af_heart is selected by default.
@@ -196,7 +212,9 @@ test("voice picker selects and persists across reload", async ({ page }) => {
 test("reset wipes model, library, and settings; returns to loading screen", async ({ page }) => {
   test.setTimeout(4 * 60 * 1000);
   await clearStorage(page);
-  await expect(page.getByText(/Ready · paste/i)).toBeVisible({ timeout: 3 * 60 * 1000 });
+  await page.waitForFunction(() => document.documentElement.dataset.ttsDevice !== undefined, {
+    timeout: 3 * 60 * 1000,
+  });
 
   // Make sure there's something to clear.
   await page.getByLabel("Text").fill("To be reset.");
@@ -215,7 +233,9 @@ test("reset wipes model, library, and settings; returns to loading screen", asyn
 test("export downloads a zip containing a single combined audio.mp4", async ({ page }) => {
   test.setTimeout(4 * 60 * 1000);
   await clearStorage(page);
-  await expect(page.getByText(/Ready · paste/i)).toBeVisible({ timeout: 3 * 60 * 1000 });
+  await page.waitForFunction(() => document.documentElement.dataset.ttsDevice !== undefined, {
+    timeout: 3 * 60 * 1000,
+  });
 
   await page.getByLabel("Text").fill("Export round-trip check.");
   await page.getByTestId("speak").click();
@@ -261,7 +281,9 @@ test("export downloads a zip containing a single combined audio.mp4", async ({ p
 test("switching to a different session while modified shows discard dialog", async ({ page }) => {
   test.setTimeout(4 * 60 * 1000);
   await clearStorage(page);
-  await expect(page.getByText(/Ready · paste/i)).toBeVisible({ timeout: 3 * 60 * 1000 });
+  await page.waitForFunction(() => document.documentElement.dataset.ttsDevice !== undefined, {
+    timeout: 3 * 60 * 1000,
+  });
 
   // Create session A
   await page.getByLabel("Text").fill("Session A.");

@@ -959,84 +959,61 @@ textarea {
   position: relative;
 }
 
-.doc-head {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  position: relative;
-}
-.doc-head .kicker {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-.doc-head h1 {
-  font-size: clamp(28px, 3.4vw, 38px);
-  line-height: 1.1;
-  letter-spacing: -0.025em;
-  font-weight: 700;
-  color: var(--ink-0);
-  display: inline-flex;
-  align-items: baseline;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.doc-head h1 .untitled {
+/* Title-in-topbar (replaces the old .doc-head h1). Inherits the
+   topbar's font size so the title reads as a label, not a poster. */
+.crumbs .untitled {
   color: var(--ink-3);
   font-weight: 600;
   font-style: italic;
 }
-.doc-head h1 .mod {
+.crumbs .mod {
   color: var(--warn);
-  font-size: 0.55em;
+  font-size: 11px;
   line-height: 1;
   animation: pulse 1.6s ease-in-out infinite;
 }
-.doc-head h1 .title-btn {
+.crumbs .title-btn {
   font: inherit;
-  color: inherit;
+  color: var(--ink-0);
+  font-weight: 600;
   letter-spacing: inherit;
   background: transparent;
   border: 1px solid transparent;
   padding: 2px 6px;
   margin: -2px -6px;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: text;
   text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 48ch;
   transition: background 0.12s, border-color 0.12s;
 }
-.doc-head h1 .title-btn:hover {
+.crumbs .title-btn:hover {
   background: var(--bg-1);
   border-color: var(--border);
 }
-.doc-head h1 .title-edit {
+.crumbs .title-edit {
   font: inherit;
-  color: inherit;
+  color: var(--ink-0);
+  font-weight: 600;
   letter-spacing: inherit;
   background: var(--bg-1);
   border: 1px solid var(--accent);
   padding: 2px 6px;
   margin: -2px -6px;
-  border-radius: 8px;
+  border-radius: 6px;
   outline: none;
   min-width: 12ch;
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
-.doc-head .sub {
-  color: var(--ink-2);
-  font-size: 14px;
+.crumbs .topbar-meta {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  font-weight: 500;
+  margin-left: 6px;
 }
-.doc-head .sub b {
-  color: var(--ink-0);
-  font-weight: 600;
-}
-.doc-head .sub .dot {
-  color: var(--ink-4);
-  margin: 0 6px;
-}
-
 .ready-stamp {
   display: inline-flex;
   align-items: center;
@@ -2333,9 +2310,6 @@ textarea {
 .shell-panel .stage {
   padding: 12px 12px 14px;
   gap: 12px;
-}
-.shell-panel .doc-head h1 {
-  font-size: 22px;
 }
 .shell-panel .composer {
   min-height: 220px;

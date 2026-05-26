@@ -158,50 +158,56 @@ export function ReaderView(props: ReaderViewProps): React.JSX.Element {
         : "Generate";
 
   const title = session?.title ?? (doc.sourceText.length > 0 ? "Untitled draft" : null);
-  const kicker = doc.id
-    ? modified
-      ? "DRAFT · MODIFIED"
-      : "SAVED · READING"
-    : doc.sourceText.length > 0
-      ? "DRAFT · UNSAVED"
-      : "NEW · READY";
-
-  // Sub-line: empty state must contain "Ready · paste" (used by e2e tests).
-  let sub: React.ReactNode;
-  if (doc.sourceText.length === 0) {
-    sub = "Ready · paste something to read aloud.";
-  } else if (doc.id) {
-    sub = (
-      <>
-        <b>{words.toLocaleString()}</b> words<span className="dot">·</span>about <b>{estMin} min</b>{" "}
-        at {speed}×<span className="dot">·</span>voice <b>{voice}</b>
-        {session ? (
-          <>
-            <span className="dot">·</span>saved {formatDate(session.createdAt)}
-          </>
-        ) : null}
-        {modified ? (
-          <>
-            <span className="dot">·</span>
-            <span style={{ color: "var(--warn)", fontWeight: 600 }}>unsaved edits</span>
-          </>
-        ) : null}
-      </>
-    );
-  } else {
-    sub = (
-      <>
-        <b>{words.toLocaleString()}</b> words<span className="dot">·</span>about <b>{estMin} min</b>{" "}
-        at {speed}×<span className="dot">·</span>voice <b>{voice}</b>
-      </>
-    );
-  }
 
   return (
     <>
       <header className="topbar">
         <div className="crumbs">
-          Library <span className="sep">/</span> <b>{title ?? "New reading"}</b>
+          {title ? (
+            editingTitle !== null && doc.id ? (
+              <input
+                ref={titleInputRef}
+                className="title-edit"
+                value={editingTitle}
+                maxLength={120}
+                onChange={(e) => setEditingTitle(e.target.value)}
+                onBlur={commitTitle}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    commitTitle();
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    setEditingTitle(null);
+                  }
+                }}
+                aria-label="Rename reading"
+                data-testid="title-edit"
+              />
+            ) : doc.id ? (
+              <button
+                type="button"
+                className="title-btn"
+                onClick={() => setEditingTitle(session?.title ?? title)}
+                title="Rename"
+                data-testid="title-button"
+              >
+                {title}
+              </button>
+            ) : (
+              <b>{title}</b>
+            )
+          ) : (
+            <span className="untitled">New reading</span>
+          )}
+          {modified ? (
+            <span className="mod" title="Unsaved changes">
+              ●
+            </span>
+          ) : null}
+          {session && !modified ? (
+            <span className="topbar-meta">saved {formatDate(session.createdAt)}</span>
+          ) : null}
         </div>
         <div className="right">
           {status.kind === "error" ? (
@@ -245,63 +251,11 @@ export function ReaderView(props: ReaderViewProps): React.JSX.Element {
       </header>
 
       <div className="stage">
-        <div className="doc-head">
-          <div className="kicker">{kicker}</div>
-          <h1>
-            {title ? (
-              editingTitle !== null && doc.id ? (
-                <input
-                  ref={titleInputRef}
-                  className="title-edit"
-                  value={editingTitle}
-                  maxLength={120}
-                  onChange={(e) => setEditingTitle(e.target.value)}
-                  onBlur={commitTitle}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      commitTitle();
-                    } else if (e.key === "Escape") {
-                      e.preventDefault();
-                      setEditingTitle(null);
-                    }
-                  }}
-                  aria-label="Rename reading"
-                  data-testid="title-edit"
-                />
-              ) : (
-                <>
-                  {doc.id ? (
-                    <button
-                      type="button"
-                      className="title-btn"
-                      onClick={() => setEditingTitle(session?.title ?? title)}
-                      title="Rename"
-                      data-testid="title-button"
-                    >
-                      {title}
-                    </button>
-                  ) : (
-                    <span>{title}</span>
-                  )}
-                  {modified ? (
-                    <span className="mod" title="Unsaved changes">
-                      ●
-                    </span>
-                  ) : null}
-                </>
-              )
-            ) : (
-              <span className="untitled">Untitled — start typing</span>
-            )}
-          </h1>
-          <p className="sub">{sub}</p>
-          {showReadyStamp ? (
-            <span className="ready-stamp" data-testid="ready-stamp">
-              Voice ready
-            </span>
-          ) : null}
-        </div>
+        {showReadyStamp ? (
+          <span className="ready-stamp" data-testid="ready-stamp">
+            Voice ready
+          </span>
+        ) : null}
 
         <div className="composer">
           <EditableText

@@ -71,7 +71,11 @@ async function readyExtensionApp(
     localStorage.setItem("catm:onboarded", "1");
   });
   await page.reload();
-  await expect(page.getByText(/Ready · paste/i)).toBeVisible({ timeout: 3 * 60 * 1000 });
+  // App.tsx sets document.documentElement.dataset.ttsDevice as soon as the
+  // worker reports `ready`. Status-bound and survives UI text changes.
+  await page.waitForFunction(() => document.documentElement.dataset.ttsDevice !== undefined, {
+    timeout: 3 * 60 * 1000,
+  });
 }
 
 test.describe("loaded extension end-to-end", () => {

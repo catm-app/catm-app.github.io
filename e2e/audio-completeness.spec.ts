@@ -125,7 +125,9 @@ test("playback covers the entire saved audio without forward-skipping", async ({
   // that's stuck, not slow.
   test.setTimeout(2 * 60 * 1000);
   await clearStorage(page);
-  await expect(page.getByText(/Ready · paste/i)).toBeVisible({ timeout: 3 * 60 * 1000 });
+  await page.waitForFunction(() => document.documentElement.dataset.ttsDevice !== undefined, {
+    timeout: 3 * 60 * 1000,
+  });
 
   await page.addInitScript(() => {
     const apply = () => {
@@ -227,7 +229,9 @@ for (const c of cases) {
   test(`audio duration is consistent with input word count: ${c.name}`, async ({ page }) => {
     test.setTimeout(4 * 60 * 1000);
     await clearStorage(page);
-    await expect(page.getByText(/Ready · paste/i)).toBeVisible({ timeout: 3 * 60 * 1000 });
+    await page.waitForFunction(() => document.documentElement.dataset.ttsDevice !== undefined, {
+      timeout: 3 * 60 * 1000,
+    });
 
     await page.getByLabel("Text").fill(c.text);
     await page.getByTestId("speak").click();

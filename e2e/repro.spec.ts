@@ -53,7 +53,9 @@ interface Capture {
 test("repro: pasted DL article — capture saved audio for inspection", async ({ page }, info) => {
   test.setTimeout(8 * 60 * 1000);
   await clearStorage(page);
-  await expect(page.getByText(/Ready · paste/i)).toBeVisible({ timeout: 3 * 60 * 1000 });
+  await page.waitForFunction(() => document.documentElement.dataset.ttsDevice !== undefined, {
+    timeout: 3 * 60 * 1000,
+  });
 
   await page.getByLabel("Text").fill(USER_TEXT);
   await page.getByTestId("speak").click();
