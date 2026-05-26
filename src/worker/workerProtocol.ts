@@ -146,7 +146,7 @@ export function createHandlers<V extends string = VoiceId>(deps: WorkerDeps<V>):
           (index, bytes, durationSec) =>
             deps.post({ type: "fragment-media", txnId, index, bytes, durationSec }, [bytes.buffer]),
         );
-        encoder.start();
+        await encoder.start();
         stream = { txnId, voice, encoder, startMs: performance.now(), audioSec: 0 };
         return;
       }

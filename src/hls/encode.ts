@@ -1,10 +1,20 @@
 // Worker-safe encoding utilities. No DOM-only APIs (e.g. OfflineAudioContext)
 // because this file is imported from kokoro.worker.ts.
-import { ArrayBufferTarget, Muxer, StreamTarget } from "mp4-muxer";
+import {
+  AudioSample,
+  AudioSampleSource,
+  BufferTarget,
+  Mp4OutputFormat,
+  Output,
+  StreamTarget,
+  type StreamTargetChunk,
+} from "mediabunny";
 
 export const ENCODE_SAMPLE_RATE = 48_000;
 export const AAC_FRAME_SIZE = 1024;
 export const AAC_BITRATE = 64_000;
+
+const ENCODING_CONFIG = { codec: "aac" as const, bitrate: AAC_BITRATE };
 
 /**
  * 2× linear upsampler. Kokoro emits 24000 Hz; Chrome's WebCodecs AAC encoder
@@ -28,60 +38,40 @@ export function linearUpsample2x(input: Float32Array): Float32Array {
   return out;
 }
 
+function toEncodeRate(pcm: Float32Array, inputSampleRate: number): Float32Array {
+  if (inputSampleRate === ENCODE_SAMPLE_RATE) return pcm;
+  if (inputSampleRate * 2 === ENCODE_SAMPLE_RATE) return linearUpsample2x(pcm);
+  throw new Error(`unsupported input rate ${inputSampleRate}`);
+}
+
 /** One-shot encode used by the voice-preview path on the main thread. */
 export async function encodePcmToCompleteMp4(
   pcmIn: Float32Array,
   inputSampleRate: number,
 ): Promise<{ bytes: Uint8Array; durationSec: number }> {
-  const pcm =
-    inputSampleRate === ENCODE_SAMPLE_RATE
-      ? pcmIn
-      : inputSampleRate * 2 === ENCODE_SAMPLE_RATE
-        ? linearUpsample2x(pcmIn)
-        : (() => {
-            throw new Error(`unsupported input rate ${inputSampleRate}`);
-          })();
+  const pcm = toEncodeRate(pcmIn, inputSampleRate);
 
-  const muxer = new Muxer({
-    target: new ArrayBufferTarget(),
-    fastStart: "fragmented",
-    audio: { codec: "aac", numberOfChannels: 1, sampleRate: ENCODE_SAMPLE_RATE },
+  const target = new BufferTarget();
+  const output = new Output({
+    format: new Mp4OutputFormat({ fastStart: "fragmented" }),
+    target,
   });
-  let encoderError: Error | null = null;
-  const encoder = new AudioEncoder({
-    output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
-    error: (e) => {
-      encoderError = e;
-    },
-  });
-  encoder.configure({
-    codec: "mp4a.40.2",
+  const source = new AudioSampleSource(ENCODING_CONFIG);
+  output.addAudioTrack(source);
+  await output.start();
+  const sample = new AudioSample({
+    data: pcm,
+    format: "f32-planar",
     sampleRate: ENCODE_SAMPLE_RATE,
     numberOfChannels: 1,
-    bitrate: AAC_BITRATE,
+    timestamp: 0,
   });
-
-  const microsPerSample = 1_000_000 / ENCODE_SAMPLE_RATE;
-  for (let offset = 0; offset < pcm.length; offset += AAC_FRAME_SIZE) {
-    const frames = Math.min(AAC_FRAME_SIZE, pcm.length - offset);
-    const slice = new Float32Array(pcm.buffer, pcm.byteOffset + offset * 4, frames);
-    const data = new AudioData({
-      format: "f32-planar",
-      sampleRate: ENCODE_SAMPLE_RATE,
-      numberOfFrames: frames,
-      numberOfChannels: 1,
-      timestamp: Math.round(offset * microsPerSample),
-      data: slice as Float32Array<ArrayBuffer>,
-    });
-    encoder.encode(data);
-    data.close();
-  }
-  await encoder.flush();
-  encoder.close();
-  if (encoderError) throw encoderError;
-  muxer.finalize();
+  await source.add(sample);
+  sample.close();
+  await output.finalize();
+  if (!target.buffer) throw new Error("mediabunny BufferTarget produced no buffer");
   return {
-    bytes: new Uint8Array(muxer.target.buffer),
+    bytes: new Uint8Array(target.buffer),
     durationSec: pcm.length / ENCODE_SAMPLE_RATE,
   };
 }
@@ -89,19 +79,23 @@ export async function encodePcmToCompleteMp4(
 /**
  * Stateful fragmenter: feed PCM chunks at the source sample rate, get init +
  * media fragments out via callbacks. One instance per synthesis session.
+ *
+ * Encoding (including timestamp management) is delegated to mediabunny's
+ * AudioSampleSource. We only feed it raw PCM with monotonic timestamps and
+ * box-parse the resulting fMP4 byte stream into init + per-fragment slices.
  */
 export class ProgressiveEncoder {
-  private muxer: Muxer<StreamTarget> | null = null;
-  private encoder: AudioEncoder | null = null;
+  private output: Output | null = null;
+  private source: AudioSampleSource | null = null;
   private inputSampleRate: number;
 
   private buffer = new Uint8Array(0);
+  private writtenEnd = 0;
   private parsedOffset = 0;
   private initEmitted = false;
   private pendingMoofStart: number | null = null;
   private fragmentIndex = 0;
   private samplesEncoded = 0;
-  private encoderError: Error | null = null;
   private closed = false;
 
   constructor(
@@ -115,86 +109,65 @@ export class ProgressiveEncoder {
     }
   }
 
-  start(): void {
-    this.muxer = new Muxer<StreamTarget>({
-      target: new StreamTarget({
-        onData: (data, position) => this.onBytes(data, position),
-        chunked: false,
-      }),
-      fastStart: "fragmented",
-      audio: { codec: "aac", numberOfChannels: 1, sampleRate: ENCODE_SAMPLE_RATE },
-      minFragmentDuration: 2.0,
-    });
-
-    this.encoder = new AudioEncoder({
-      output: (chunk, meta) => this.muxer?.addAudioChunk(chunk, meta),
-      error: (e) => {
-        this.encoderError = e;
+  async start(): Promise<void> {
+    const writable = new WritableStream<StreamTargetChunk>({
+      write: (chunk) => {
+        this.onBytes(chunk.data, chunk.position);
+        this.drainBoxes();
       },
     });
-    this.encoder.configure({
-      codec: "mp4a.40.2",
-      sampleRate: ENCODE_SAMPLE_RATE,
-      numberOfChannels: 1,
-      bitrate: AAC_BITRATE,
+    this.output = new Output({
+      format: new Mp4OutputFormat({ fastStart: "fragmented", minimumFragmentDuration: 2.0 }),
+      target: new StreamTarget(writable),
     });
+    this.source = new AudioSampleSource(ENCODING_CONFIG);
+    this.output.addAudioTrack(this.source);
+    await this.output.start();
   }
 
   async pushChunk(pcm: Float32Array): Promise<void> {
-    if (!this.encoder) throw new Error("encoder not started");
-    const upsampled = this.inputSampleRate === ENCODE_SAMPLE_RATE ? pcm : linearUpsample2x(pcm);
-    const microsPerSample = 1_000_000 / ENCODE_SAMPLE_RATE;
-    for (let offset = 0; offset < upsampled.length; offset += AAC_FRAME_SIZE) {
-      const frames = Math.min(AAC_FRAME_SIZE, upsampled.length - offset);
-      const slice = new Float32Array(upsampled.buffer, upsampled.byteOffset + offset * 4, frames);
-      const data = new AudioData({
-        format: "f32-planar",
-        sampleRate: ENCODE_SAMPLE_RATE,
-        numberOfFrames: frames,
-        numberOfChannels: 1,
-        timestamp: Math.round((this.samplesEncoded + offset) * microsPerSample),
-        data: slice as Float32Array<ArrayBuffer>,
-      });
-      this.encoder.encode(data);
-      data.close();
-    }
+    if (!this.source) throw new Error("encoder not started");
+    const upsampled = toEncodeRate(pcm, this.inputSampleRate);
+    if (upsampled.length === 0) return;
+    const sample = new AudioSample({
+      data: upsampled,
+      format: "f32-planar",
+      sampleRate: ENCODE_SAMPLE_RATE,
+      numberOfChannels: 1,
+      timestamp: this.samplesEncoded / ENCODE_SAMPLE_RATE,
+    });
     this.samplesEncoded += upsampled.length;
-    await this.encoder.flush();
-    if (this.encoderError) throw this.encoderError;
-    this.drainBoxes();
+    await this.source.add(sample);
+    sample.close();
   }
 
   async finish(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
-    if (this.encoder) {
-      await this.encoder.flush();
-      this.encoder.close();
-    }
-    this.muxer?.finalize();
+    await this.output?.finalize();
     this.drainBoxes();
-    if (this.encoderError) throw this.encoderError;
   }
 
   private onBytes(data: Uint8Array, position: number): void {
-    if (position !== this.buffer.length) {
-      throw new Error(`out-of-order mp4 write: got ${position}, have ${this.buffer.length}`);
+    const end = position + data.length;
+    if (end > this.buffer.length) {
+      const next = new Uint8Array(end);
+      next.set(this.buffer, 0);
+      this.buffer = next;
     }
-    const next = new Uint8Array(this.buffer.length + data.length);
-    next.set(this.buffer, 0);
-    next.set(data, this.buffer.length);
-    this.buffer = next;
+    this.buffer.set(data, position);
+    if (end > this.writtenEnd) this.writtenEnd = end;
   }
 
   private drainBoxes(): void {
-    while (this.parsedOffset + 8 <= this.buffer.length) {
+    while (this.parsedOffset + 8 <= this.writtenEnd) {
       const boxStart = this.parsedOffset;
       const view = new DataView(this.buffer.buffer, this.buffer.byteOffset, this.buffer.byteLength);
       const size = view.getUint32(boxStart);
       const type = readBoxType(this.buffer, boxStart + 4);
       let step: number;
       if (size === 1) {
-        if (boxStart + 16 > this.buffer.length) return;
+        if (boxStart + 16 > this.writtenEnd) return;
         const hi = view.getUint32(boxStart + 8);
         const lo = view.getUint32(boxStart + 12);
         step = hi * 2 ** 32 + lo;
@@ -203,7 +176,7 @@ export class ProgressiveEncoder {
       } else {
         step = size;
       }
-      if (boxStart + step > this.buffer.length) return;
+      if (boxStart + step > this.writtenEnd) return;
       const boxEnd = boxStart + step;
 
       if (!this.initEmitted) {
