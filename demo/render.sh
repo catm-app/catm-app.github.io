@@ -36,7 +36,7 @@ run_remotion() {
 # in sync with the SCENES timing in src/Demo.tsx.
 render_stills() {
   build_image
-  for pair in "75:onboarding" "330:sidepanel" "600:voices" "870:fulltab" "1140:privacy"; do
+  for pair in "70:onboarding" "330:sidepanel" "600:voices" "870:fulltab" "1140:privacy"; do
     frame="${pair%%:*}"
     name="${pair##*:}"
     echo "── still: $name (frame $frame) ──"

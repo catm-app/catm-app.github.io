@@ -87,7 +87,10 @@ export function SceneOnboarding({ overlay }: SceneOnboardingProps): React.JSX.El
 
       <CopyOverlay
         overlay={overlay}
-        startFrame={PANEL_FRAME + 12}
+        // Fade in during the selection sweep so the headline is already
+        // present when the right-click menu opens. This gives a window in
+        // which menu + copy co-exist — needed for the CWS still.
+        startFrame={24}
         title={
           <>
             Select. <em style={{ color: "#5b6cff", fontStyle: "normal" }}>Read it to me.</em>
