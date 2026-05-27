@@ -1,5 +1,4 @@
 export interface IngestedDraft {
-  title: string | null;
   text: string;
 }
 
@@ -7,7 +6,6 @@ const PENDING_KEY = "catm:pending-share";
 
 interface PendingShare {
   text?: unknown;
-  title?: unknown;
 }
 
 interface ChromeStorageChange<T> {
@@ -45,9 +43,8 @@ function toDraft(raw: unknown): IngestedDraft | null {
   if (!raw || typeof raw !== "object") return null;
   const p = raw as PendingShare;
   const text = typeof p.text === "string" ? p.text.trim() : "";
-  const title = typeof p.title === "string" ? p.title.trim() : "";
-  if (text.length === 0 && !title) return null;
-  return { title: title || null, text };
+  if (text.length === 0) return null;
+  return { text };
 }
 
 export function consumeExtensionShare(handler: (draft: IngestedDraft) => void): () => void {

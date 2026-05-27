@@ -82,7 +82,6 @@ test("catm full journey on the loaded extension", async () => {
           // @ts-expect-error global injected by background.js
           (globalThis as never).__catmIngestSelection({
             text,
-            tabTitle: "Example Article",
             windowId: null,
           }),
         { text: LONG_TEXT },
