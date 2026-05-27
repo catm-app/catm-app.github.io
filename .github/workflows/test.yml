@@ -2,11 +2,11 @@
 # and pull request.
 #
 # Runner choice: macos-14. Empirically the only free-tier runner where
-# Chromium's Metal-via-ANGLE WebGPU path actually works — webgpu.spec.ts
-# passes in ~10s here. Ubuntu + Mesa lavapipe (software Vulkan) was tried
-# and is too slow for compute-heavy transformer inference (every synth test
-# times out). Without real GPU, Kokoro falls back to WASM which is 10-30×
-# slower than WebGPU and exceeds reasonable per-test budgets.
+# Chromium's Metal-via-ANGLE WebGPU path actually works — synth completes
+# in ~10s here. Ubuntu + Mesa lavapipe (software Vulkan) was tried and is
+# too slow for compute-heavy transformer inference (every synth test times
+# out). Without real GPU, Kokoro falls back to WASM which is 10-30× slower
+# than WebGPU and exceeds reasonable per-test budgets.
 
 name: Test
 

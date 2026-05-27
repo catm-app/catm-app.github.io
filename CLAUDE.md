@@ -14,11 +14,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run build` — typecheck + `vite build --mode extension` to `extension/app/` (the bundled extension app; gitignored). Uses the root `index.html` as the React entry. The extension is the only thing that gets built; the marketing site has no build step (see below).
 - `npm run check:marketing` — `node scripts/check-marketing.mjs`. Verifies every relative href/src in `marketing/*.html` resolves to a file. Run automatically by `test.yml` before the test suite so a typo'd asset path fails the PR.
 - `npm run lint` — Biome check (lint + format diff). `npm run format` to autoformat.
-- `npm test` — full suite: Vitest unit tests then Playwright e2e. This is the verification command; always run it whole. `npm run test:unit` runs only Vitest (node env, `src/**/*.test.ts{,x}`); `npm run test:unit:watch` for watch mode; notable suites: `src/textChunk.test.ts` (highlight chunker) and `src/worker/splitToFit.test.ts` (phoneme-token splitter). `npm run test:e2e` runs only Playwright (Chromium only, single worker, 5-min test timeout, reuses an existing dev server on :5173). Single specs (e.g. `npx vitest run src/textChunk.test.ts`, `npx playwright test -g "synth saves session"`) are fine for iterating on a failure but never sufficient for verifying a change.
+- `npm test` — full suite: Vitest unit tests then Playwright e2e. This is the verification command; always run it whole. `npm run test:unit` runs only Vitest (node env, `src/**/*.test.ts{,x}`); `npm run test:unit:watch` for watch mode; notable suites: `src/textChunk.test.ts` (highlight chunker) and `src/worker/splitToFit.test.ts` (phoneme-token splitter). `npm run test:e2e` runs only Playwright (Chromium only, single worker, 60s test/expect/action timeouts, reuses an existing dev server on :5173). The Playwright suite is intentionally one journey (`e2e/journey.spec.ts`) that drives the full onboard → synth → reload → replay → edit → delete flow; subdividing it defeats the purpose.
 
 Playwright launches Chrome with `--enable-features=SharedArrayBuffer` — needed so the worker can run ONNX. If you change the e2e harness, preserve that flag.
 
-**Always run the full test suite. There are no valid subsets.** `npm test` runs unit + e2e together — that is the verification command. Do not run a single spec file ("hello-world only", "the fast one") and report that as verification; that is a skipped test, not a fast test.
+**Always run the full test suite. There are no valid subsets.** `npm test` runs unit + e2e together — that is the verification command. The e2e suite is one journey on purpose; do not skip it or replace it with a unit-only run and call that verification.
 
 ## Architecture
 
