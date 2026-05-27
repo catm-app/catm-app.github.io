@@ -6,10 +6,10 @@
 **Get it →** [catm-app.github.io](https://catm-app.github.io/)
 
 <p align="center">
-  <img src="./docs/demo.gif" alt="catm — select text, right-click Read it to me, listen — everything runs in the browser" width="720" />
+  <img src="./docs/demo.gif" alt="catm — select text, right-click Read aloud, listen — everything runs in the browser" width="720" />
 </p>
 
-A 100% in-browser long-form text-to-speech reader, shipped as a Chrome extension. Select any text on any page, right-click **Read it to me**, and the side panel reads it back to you. Synthesis runs locally on your machine — no server, no upload, no account.
+A 100% in-browser long-form text-to-speech reader, shipped as a Chrome extension. Select any text on any page, right-click **Read aloud**, and the side panel reads it back to you. Synthesis runs locally on your machine — no server, no upload, no account.
 
 The Kokoro 82M TTS model is downloaded once into the extension's HTTP cache (~310 MB) and run via ONNX Runtime Web (WebGPU when available, WASM fallback). After the first read, catm works fully offline.
 
@@ -54,7 +54,7 @@ See [`CLAUDE.md`](./CLAUDE.md) for the deeper map (storage layers, worker concur
 
 ## Browser extension
 
-`extension/` is a Chrome MV3 extension that hosts the full catm app inside Chrome's **side panel**, plus a right-click **"Read it to me"** entry that drops the current selection into the panel and opens it. The same bundle runs in a popped-out tab via the arrow icon in the panel's brand bar — both views share OPFS / IndexedDB / the cached model since they're the same `chrome-extension://` origin.
+`extension/` is a Chrome MV3 extension that hosts the full catm app inside Chrome's **side panel**, plus a right-click **"Read aloud"** entry that drops the current selection into the panel and opens it. The same bundle runs in a popped-out tab via the arrow icon in the panel's brand bar — both views share OPFS / IndexedDB / the cached model since they're the same `chrome-extension://` origin.
 
 The extension is self-contained: it bundles the React app under `extension/app/` and uses no remote scripts. WebGPU works inside the panel — the worker disables ORT-Web's blob-based loaders (`numThreads = 1`, `proxy = false`, `wasmPaths = undefined`) so nothing trips MV3's CSP.
 

@@ -125,7 +125,7 @@ export function Rail({
                       onClick={() => onExport(s.id)}
                       disabled={isRecording}
                       aria-label={`Export ${s.title}`}
-                      title={isRecording ? "Export disabled while recording" : "Export (.zip)"}
+                      title={isRecording ? "Export disabled while generating" : "Export (.zip)"}
                       data-testid="library-export"
                     >
                       <svg

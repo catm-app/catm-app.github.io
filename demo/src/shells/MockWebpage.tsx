@@ -199,7 +199,7 @@ function ContextMenu({ x, y }: { x: number; y: number }): React.JSX.Element {
         >
           c
         </span>
-        catm · Read it to me
+        catm · Read aloud
       </div>
     </div>
   );

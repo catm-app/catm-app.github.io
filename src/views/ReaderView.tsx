@@ -216,7 +216,7 @@ export function ReaderView(props: ReaderViewProps): React.JSX.Element {
               error
             </span>
           ) : null}
-          {isSynth ? <span className="chip-sm synth">Recording…</span> : null}
+          {isSynth ? <span className="chip-sm synth">Generating…</span> : null}
           {!isSynth && status.kind === "ready" ? (
             doc.hasAudio && !isStale ? (
               <span className="chip-sm good">Ready</span>
@@ -282,7 +282,7 @@ export function ReaderView(props: ReaderViewProps): React.JSX.Element {
               onClick={() => (isSynth ? onCancel() : onRead())}
               disabled={!isSynth && !canRead}
               data-testid="speak"
-              aria-label={isSynth ? "Cancel recording" : undefined}
+              aria-label={isSynth ? "Cancel generating" : undefined}
             >
               {isSynth ? (
                 <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true">

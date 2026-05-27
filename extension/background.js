@@ -4,7 +4,7 @@ const PENDING_KEY = "catm:pending-share";
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: MENU_ID,
-    title: "Read it to me",
+    title: "Read aloud",
     contexts: ["selection"],
   });
 });

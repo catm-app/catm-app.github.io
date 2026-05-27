@@ -88,7 +88,7 @@ test("catm full journey on the loaded extension", async () => {
       );
       await expect(page.getByTestId("text-input")).toContainText(LONG_TEXT);
 
-      // "Read it to me" implies action — no speak.click() here. The ingest
+      // "Read aloud" implies action — no speak.click() here. The ingest
       // handler in App.tsx queues synth automatically when the worker is ready.
       const audio = page.getByTestId("audio");
       await expect
@@ -185,7 +185,7 @@ test("catm full journey on the loaded extension", async () => {
       await expect(libraryRow).toHaveCount(1);
       await expect(libraryRow.locator(".voice-tag")).toHaveText("am_michael");
 
-      // Second "Read it to me" while the panel is still open used to be a
+      // Second "Read aloud" while the panel is still open used to be a
       // silent no-op (the ingest guard refused to clobber any non-empty doc).
       // It should now save the current session (no-op when unmodified) and
       // swap in the new text + synth.

@@ -197,7 +197,7 @@ export function App(): React.JSX.Element {
     });
   }, []);
 
-  // "Read it to me" implies action: save whatever's loaded (so the user
+  // "Read aloud" implies action: save whatever's loaded (so the user
   // doesn't lose unsaved edits or the previous share's session), then swap
   // in the new text and queue synth. Refs mirror state each render so the
   // ingest callback (fired from a chrome.storage listener — outside React's

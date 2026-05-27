@@ -93,7 +93,7 @@ export function SceneOnboarding({ overlay }: SceneOnboardingProps): React.JSX.El
         startFrame={24}
         title={
           <>
-            Select. <em style={{ color: "#5b6cff", fontStyle: "normal" }}>Read it to me.</em>
+            Select. <em style={{ color: "#5b6cff", fontStyle: "normal" }}>Read aloud.</em>
           </>
         }
         subtitle="Right-click any text on any page. The side panel opens with your selection ready to listen to."

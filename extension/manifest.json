@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "catm",
   "short_name": "catm",
-  "description": "On-device long-form text-to-speech in a side panel. Right-click selected text → Read it to me.",
+  "description": "On-device long-form text-to-speech in a side panel. Right-click selected text → Read aloud.",
   "version": "0.2.3",
   "icons": {
     "16": "icons/icon-16.png",
