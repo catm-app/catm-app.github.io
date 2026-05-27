@@ -68,7 +68,7 @@ The worker picks `device: "webgpu"` when `navigator.gpu` exists, otherwise `wasm
 
 ### Marketing page
 
-`marketing/` holds a hand-written static HTML page (no JS, no React) styled to match the app's aesthetic — same `radial-gradient` body background and dot-SVG overlay, same `c` brand mark, same hero card / kicker / accent-gradient text treatment as the onboarding card. Assets next to it (`favicon.svg`, `demo.gif`, `privacy.html`) are referenced with relative paths. **There is no build step** — `deploy.yml` uploads `marketing/` directly to GitHub Pages. `scripts/check-marketing.mjs` is a CI-only lint that verifies all relative refs resolve before the deploy fires. **`marketing/privacy.html` is mandatory for the Chrome Web Store** (the extension reads selected page content); do not delete it during cleanup.
+`marketing/` holds a hand-written static HTML page (no JS, no React) styled to match the app's aesthetic — same `radial-gradient` body background and dot-SVG overlay, same `c` brand mark, same gradient accents. Assets next to it (`favicon.svg`, `privacy.html`) are referenced with relative paths. **There is no build step** — `deploy.yml` uploads `marketing/` directly to GitHub Pages. `scripts/check-marketing.mjs` is a CI-only lint that verifies all relative refs resolve before the deploy fires. **`marketing/privacy.html` is mandatory for the Chrome Web Store** (the extension reads selected page content); do not delete it during cleanup.
 
 ### Extension build
 

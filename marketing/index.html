@@ -17,9 +17,7 @@
         --bg-0: #fafbfc;
         --bg-1: #ffffff;
         --bg-2: #f4f5f7;
-        --bg-3: #ececee;
         --border: #e6e8ec;
-        --border-strong: #d4d7de;
         --ink-0: #0d0e12;
         --ink-1: #2a2d35;
         --ink-2: #585d6b;
@@ -29,17 +27,13 @@
         --accent-end: #8a98ff;
         --accent-soft: #eef0ff;
         --accent-ink: #3b48cc;
-        --good: #16a06f;
-        --good-soft: rgba(22, 160, 111, 0.08);
       }
       @media (prefers-color-scheme: dark) {
         :root {
           --bg-0: #0f1115;
           --bg-1: #161a21;
           --bg-2: #1c2129;
-          --bg-3: #232934;
           --border: #2a303b;
-          --border-strong: #3a4150;
           --ink-0: #f5f6f8;
           --ink-1: #d8dbe2;
           --ink-2: #9da3b1;
@@ -49,8 +43,6 @@
           --accent-end: #a8b3ff;
           --accent-soft: rgba(122, 138, 255, 0.16);
           --accent-ink: #a8b3ff;
-          --good: #34c896;
-          --good-soft: rgba(52, 200, 150, 0.14);
         }
       }
       * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -60,280 +52,251 @@
         color: var(--ink-1);
         background: var(--bg-0);
         background-image:
-          radial-gradient(circle at 0% 0%, rgba(91, 108, 255, 0.08), transparent 45%),
-          radial-gradient(circle at 100% 100%, rgba(255, 170, 140, 0.07), transparent 50%),
+          radial-gradient(circle at 0% 0%, rgba(91, 108, 255, 0.10), transparent 50%),
+          radial-gradient(circle at 100% 100%, rgba(255, 170, 140, 0.08), transparent 55%),
           url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40'><circle cx='1' cy='1' r='1' fill='%23999' opacity='.16'/></svg>");
         background-attachment: fixed;
         -webkit-font-smoothing: antialiased;
-        letter-spacing: -0.005em;
         min-height: 100vh;
-        line-height: 1.55;
+        display: flex; flex-direction: column;
       }
 
       main {
-        max-width: 1040px;
-        margin: 0 auto;
-        padding: 28px clamp(20px, 4vw, 40px) 80px;
-      }
-
-      /* ── top bar ─────────────────────────────────────────── */
-      header.top {
-        display: flex;
+        flex: 1;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
         align-items: center;
-        gap: 12px;
-        padding: 14px 18px;
-        background: rgba(255, 255, 255, 0.6);
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-        border: 1px solid var(--border);
-        border-radius: 14px;
-        margin-bottom: 48px;
+        gap: clamp(32px, 5vw, 80px);
+        padding: clamp(48px, 8vh, 96px) clamp(28px, 5vw, 64px);
       }
-      @media (prefers-color-scheme: dark) {
-        header.top { background: rgba(22, 26, 33, 0.6); }
-      }
-      .brand {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-      }
-      .brand .logo {
-        width: 30px;
-        height: 30px;
-        border-radius: 8px;
-        background: linear-gradient(135deg, var(--accent), var(--accent-end));
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-weight: 800;
-        font-size: 14px;
-        letter-spacing: -0.04em;
-        box-shadow: 0 6px 18px rgba(91, 108, 255, 0.28);
-      }
-      .brand .name {
-        display: flex;
-        flex-direction: column;
-        line-height: 1.15;
-        letter-spacing: -0.02em;
-      }
-      .brand .name b {
-        font-weight: 700;
-        font-size: 15px;
-        color: var(--ink-0);
-      }
-      .brand .name span {
-        font-size: 11px;
-        font-weight: 500;
-        color: var(--ink-3);
-        letter-spacing: 0;
-      }
-      header.top nav {
-        margin-left: auto;
-        display: flex;
-        align-items: center;
-        gap: 22px;
-      }
-      header.top nav a {
-        color: var(--ink-2);
-        font-size: 13px;
-        font-weight: 500;
-        text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        letter-spacing: -0.005em;
-      }
-      header.top nav a:hover { color: var(--ink-0); }
-      header.top nav a.icon-link svg {
-        width: 18px;
-        height: 18px;
-        display: block;
-      }
-
-      /* ── hero card ───────────────────────────────────────── */
-      section.hero {
-        background: var(--bg-1);
-        border: 1px solid var(--border);
-        border-radius: 20px;
-        box-shadow:
-          0 1px 2px rgba(13, 14, 18, 0.04),
-          0 24px 60px rgba(13, 14, 18, 0.08);
-        padding: clamp(36px, 5vw, 56px) clamp(28px, 5vw, 56px);
-        margin-bottom: 28px;
-        text-align: center;
-      }
-      .kicker {
-        font-size: 11px;
-        font-weight: 600;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: var(--accent);
-        margin-bottom: 18px;
-      }
-      h1 {
-        font-size: clamp(36px, 5.4vw, 56px);
-        line-height: 1.04;
-        letter-spacing: -0.03em;
-        font-weight: 700;
-        color: var(--ink-0);
-        margin-bottom: 18px;
-        max-width: 18ch;
-        margin-left: auto;
-        margin-right: auto;
-      }
-      h1 em {
-        font-style: normal;
-        background: linear-gradient(135deg, var(--accent), var(--accent-end));
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
-      }
-      .lede {
-        color: var(--ink-2);
-        font-size: clamp(15.5px, 1.6vw, 17px);
-        line-height: 1.6;
-        max-width: 56ch;
-        margin: 0 auto 32px;
-      }
-      .lede strong { color: var(--ink-0); font-weight: 600; }
-      .ctas {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        justify-content: center;
-        gap: 16px;
-      }
-      .cta {
-        display: inline-flex;
-        align-items: center;
-        gap: 10px;
-        background: var(--accent);
-        color: white;
-        border: 1px solid var(--accent);
-        font-size: 14.5px;
-        font-weight: 600;
-        padding: 14px 24px;
-        border-radius: 10px;
-        cursor: pointer;
-        text-decoration: none;
-        letter-spacing: -0.01em;
-        box-shadow:
-          0 1px 0 rgba(255, 255, 255, 0.18) inset,
-          0 6px 20px rgba(91, 108, 255, 0.32);
-        transition: background 0.12s, transform 0.15s;
-      }
-      .cta:hover { background: var(--accent-ink); transform: translateY(-1px); }
-      .cta svg { width: 18px; height: 18px; }
-      .cta-note {
-        font-size: 12.5px;
-        color: var(--ink-3);
-        font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
-      }
-
-      /* ── screenshot frame ───────────────────────────────── */
-      section.screenshot {
-        margin-bottom: 64px;
-      }
-      .screenshot-frame {
-        background: var(--bg-1);
-        border: 1px solid var(--border);
-        border-radius: 16px;
-        overflow: hidden;
-        box-shadow:
-          0 1px 2px rgba(13, 14, 18, 0.04),
-          0 24px 60px -10px rgba(13, 14, 18, 0.18);
-      }
-      .screenshot-frame img {
-        display: block;
-        width: 100%;
-        height: auto;
-      }
-      @media (prefers-color-scheme: dark) {
-        .screenshot-frame {
-          box-shadow:
-            0 1px 2px rgba(0, 0, 0, 0.4),
-            0 24px 60px -10px rgba(0, 0, 0, 0.6);
+      @media (max-width: 920px) {
+        main {
+          grid-template-columns: 1fr;
+          gap: 48px;
+          padding: 60px 24px;
+          align-items: start;
         }
       }
 
-      /* ── footer ─────────────────────────────────────────── */
-      footer.bottom {
-        margin-top: 56px;
-        padding: 20px 18px;
-        background: rgba(255, 255, 255, 0.6);
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-        border: 1px solid var(--border);
-        border-radius: 14px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 16px;
-        font-size: 12.5px;
-        color: var(--ink-3);
+      .brand {
+        display: flex; flex-direction: column;
+        gap: clamp(18px, 2.5vw, 28px);
+        align-items: flex-start;
+      }
+      .brand .mark {
+        width: clamp(72px, 9vw, 116px);
+        height: clamp(72px, 9vw, 116px);
+        border-radius: clamp(18px, 2.6vw, 28px);
+        background: linear-gradient(135deg, var(--accent), var(--accent-end));
+        display: inline-flex; align-items: center; justify-content: center;
+        color: white;
+        font-weight: 800;
+        font-size: clamp(42px, 5.5vw, 70px);
+        letter-spacing: -0.06em;
+        box-shadow:
+          0 1px 0 rgba(255,255,255,0.2) inset,
+          0 20px 50px -10px rgba(91, 108, 255, 0.48);
+      }
+      .brand .wordmark {
+        font-size: clamp(72px, 11vw, 148px);
+        font-weight: 800;
+        letter-spacing: -0.05em;
+        line-height: 0.88;
+        color: var(--ink-0);
+      }
+      .brand .wordmark em {
+        font-style: normal;
+        background: linear-gradient(135deg, var(--accent), var(--accent-end));
+        -webkit-background-clip: text; background-clip: text;
+        color: transparent;
+      }
+      .brand .tagline {
         font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+        font-size: 12px;
+        color: var(--ink-3);
+        letter-spacing: 0.05em;
+        display: flex; align-items: center; gap: 10px;
+      }
+      .brand .tagline::before {
+        content: "";
+        width: 22px; height: 1px;
+        background: var(--ink-4);
+      }
+
+      .right {
+        display: flex; flex-direction: column;
+        gap: 24px;
+        max-width: 520px;
+      }
+      @media (max-width: 920px) {
+        .right { max-width: none; }
+      }
+
+      .reader {
+        background: var(--bg-1);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: 0 1px 2px rgba(13,14,18,0.04), 0 24px 60px -10px rgba(13,14,18,0.14);
+        overflow: hidden;
+      }
+      .reader-head {
+        display: flex; align-items: center; gap: 10px;
+        padding: 12px 18px;
+        border-bottom: 1px solid var(--border);
+        font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+        font-size: 11px;
+        color: var(--ink-3);
+      }
+      .reader-head .play {
+        width: 20px; height: 20px;
+        border-radius: 999px;
+        background: var(--accent);
+        display: inline-flex; align-items: center; justify-content: center;
+        color: white;
+        box-shadow: 0 4px 12px rgba(91, 108, 255, 0.4);
+      }
+      .reader-head .play svg { width: 8px; height: 8px; margin-left: 1px; }
+      .reader-head .label { color: var(--ink-2); font-weight: 500; }
+      .reader-head .meta { margin-left: auto; color: var(--ink-4); }
+
+      .reader-body {
+        padding: 28px clamp(22px, 3vw, 32px) 24px;
+        font-size: clamp(17px, 1.5vw, 19px);
+        line-height: 1.55;
         letter-spacing: -0.005em;
+        color: var(--ink-1);
       }
-      @media (prefers-color-scheme: dark) {
-        footer.bottom { background: rgba(22, 26, 33, 0.6); }
+      .reader-body .past { color: var(--ink-3); }
+      .reader-body .now {
+        background: var(--accent-soft);
+        color: var(--ink-0);
+        padding: 2px 6px;
+        margin: 0 -2px;
+        border-radius: 4px;
+        box-decoration-break: clone;
+        -webkit-box-decoration-break: clone;
       }
-      footer.bottom a {
+      .reader-body .future { color: var(--ink-2); }
+
+      .reader-foot {
+        display: flex; align-items: center; gap: 12px;
+        padding: 14px 18px 16px;
+        border-top: 1px solid var(--border);
+        background: var(--bg-2);
+      }
+      .scrub {
+        flex: 1; height: 3px;
+        border-radius: 2px;
+        background: var(--border);
+        position: relative;
+      }
+      .scrub::after {
+        content: "";
+        position: absolute; inset: 0 56% 0 0;
+        background: linear-gradient(90deg, var(--accent), var(--accent-end));
+        border-radius: 2px;
+      }
+      .scrub::before {
+        content: "";
+        position: absolute;
+        left: 44%; top: 50%;
+        transform: translate(-50%, -50%);
+        width: 11px; height: 11px;
+        border-radius: 999px;
+        background: white;
+        border: 2px solid var(--accent);
+        box-shadow: 0 2px 6px rgba(91,108,255,0.4);
+      }
+      .time {
+        font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+        font-size: 10.5px; color: var(--ink-3);
+      }
+
+      .cta-row {
+        display: flex; align-items: center; gap: 16px;
+        flex-wrap: wrap;
+      }
+      .cta {
+        display: inline-flex; align-items: center; gap: 10px;
+        background: var(--accent); color: white;
+        border: 1px solid var(--accent);
+        font-size: 14.5px; font-weight: 600;
+        padding: 13px 24px; border-radius: 11px;
+        text-decoration: none; letter-spacing: -0.01em;
+        box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 10px 28px rgba(91,108,255,0.35);
+        transition: transform 0.15s, background 0.12s;
+      }
+      .cta:hover { background: var(--accent-ink); transform: translateY(-1px); }
+      .cta svg { width: 16px; height: 16px; }
+      .cta-note {
+        font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+        font-size: 11.5px; color: var(--ink-3);
+      }
+
+      footer.mono {
+        padding: 20px clamp(28px, 5vw, 64px) 28px;
+        display: flex; align-items: center; justify-content: space-between;
+        flex-wrap: wrap; gap: 12px;
+        font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+        font-size: 11.5px;
+        color: var(--ink-3);
+      }
+      footer.mono .sep { color: var(--ink-4); margin: 0 8px; }
+      footer.mono a {
         color: var(--ink-2);
         text-decoration: none;
-        margin-left: 18px;
       }
-      footer.bottom a:first-of-type { margin-left: 0; }
-      footer.bottom a:hover { color: var(--accent); }
+      footer.mono a:hover { color: var(--accent); }
     </style>
   </head>
   <body>
     <main>
-      <header class="top">
-        <div class="brand">
-          <span class="logo" aria-hidden="true">c</span>
-          <div class="name">
-            <b>catm</b>
-            <span>come and talk to me</span>
-          </div>
-        </div>
-        <nav>
-          <a href="./privacy.html">Privacy</a>
-          <a class="icon-link" href="https://github.com/catm-app/catm-app.github.io" aria-label="catm on GitHub">
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
-          </a>
-        </nav>
-      </header>
+      <section class="brand">
+        <span class="mark" aria-hidden="true">c</span>
+        <h1 class="wordmark">cat<em>m</em></h1>
+        <div class="tagline">come and talk to me</div>
+      </section>
 
-      <section class="hero">
-        <div class="kicker">browser-native text-to-speech</div>
-        <h1>Read anything <em>out loud.</em> Locally.</h1>
-        <p class="lede">
-          catm is a Chrome extension that turns any selected text into natural-sounding audio. The Kokoro 82M model runs <strong>entirely in your browser</strong> on WebGPU — no servers, no accounts, no uploads. Listen to articles, papers, and PDFs while you keep working.
-        </p>
-        <div class="ctas">
+      <section class="right">
+        <article class="reader">
+          <div class="reader-head">
+            <span class="play" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </span>
+            <span class="label">now playing — about catm</span>
+            <span class="meta">webgpu</span>
+          </div>
+          <div class="reader-body">
+            <span class="past">Highlight a paragraph anywhere.</span>
+            <span class="now">catm reads it out loud — in your browser, without sending a word to any server.</span>
+            <span class="future"> Listen on a plane.</span>
+          </div>
+          <div class="reader-foot">
+            <span class="time">0:42</span>
+            <div class="scrub" aria-hidden="true"></div>
+            <span class="time">1:46</span>
+          </div>
+        </article>
+
+        <div class="cta-row">
           <a class="cta" href="https://chrome.google.com/webstore/detail/PLACEHOLDER_ID">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="21.17" y1="8" x2="12" y2="8"/><line x1="3.95" y1="6.06" x2="8.54" y2="14"/><line x1="10.88" y1="21.94" x2="15.46" y2="14"/></svg>
             Add to Chrome
           </a>
-          <span class="cta-note">free · open source · private</span>
+          <span class="cta-note">free · open source · 100% local</span>
         </div>
       </section>
-
-      <section class="screenshot">
-        <div class="screenshot-frame">
-          <img src="./demo.gif" alt="catm reading a passage out loud, with the active sentence highlighted as it plays" />
-        </div>
-      </section>
-
-      <footer class="bottom">
-        <span>© 2026 · MIT licensed · made by Alain Brown</span>
-        <span>
-          <a href="https://github.com/catm-app/catm-app.github.io">source</a>
-          <a href="./privacy.html">privacy</a>
-          <a href="https://github.com/catm-app/catm-app.github.io/issues">issues</a>
-        </span>
-      </footer>
     </main>
+
+    <footer class="mono">
+      <span>© 2026 <span class="sep">·</span> MIT <span class="sep">·</span> Alain Brown</span>
+      <span>
+        <a href="./privacy.html">privacy</a>
+        <span class="sep">·</span>
+        <a href="https://github.com/catm-app/catm-app.github.io">github</a>
+        <span class="sep">·</span>
+        <a href="https://github.com/catm-app/catm-app.github.io/issues">issues</a>
+      </span>
+    </footer>
   </body>
 </html>
