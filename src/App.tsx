@@ -197,23 +197,29 @@ export function App(): React.JSX.Element {
     });
   }, []);
 
-  // "Read it to me" implies action — when a share lands in an empty draft we
-  // queue synth and let the playToken bump auto-play once segments buffer.
-  // Ingest only into an empty draft so a share never clobbers unsaved work.
-  // docRef mirrors doc each render so the ingest callback (fired from a
-  // chrome.storage listener — outside React's render cycle) can read the
-  // current state synchronously instead of relying on setDoc-updater timing.
+  // "Read it to me" implies action: save whatever's loaded (so the user
+  // doesn't lose unsaved edits or the previous share's session), then swap
+  // in the new text and queue synth. Refs mirror state each render so the
+  // ingest callback (fired from a chrome.storage listener — outside React's
+  // render cycle) can read current values synchronously.
   const docRef = useRef(doc);
   docRef.current = doc;
   const [autoSynthPending, setAutoSynthPending] = useState(false);
 
+  const modifiedRef = useRef(modified);
+  modifiedRef.current = modified;
+  const onReadRef = useRef<() => Promise<void>>(async () => {});
+
   useEffect(() => {
     const ingest = (draft: IngestedDraft) => {
       if (!draft.text || draft.text.length === 0) return;
-      const current = docRef.current;
-      if (current.id !== null || current.sourceText.length > 0) return;
-      setDoc((d) => ({ ...d, sourceText: draft.text }));
-      setAutoSynthPending(true);
+      void (async () => {
+        if (modifiedRef.current) {
+          await onReadRef.current();
+        }
+        setDoc({ ...EMPTY_DOC, sourceText: draft.text });
+        setAutoSynthPending(true);
+      })();
     };
     return consumeExtensionShare(ingest);
   }, []);
@@ -543,6 +549,7 @@ export function App(): React.JSX.Element {
       setStatus({ kind: "error", message });
     }
   }
+  onReadRef.current = onRead;
 
   function onCancelSynth(): void {
     const w = workerRef.current;

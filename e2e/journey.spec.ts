@@ -185,6 +185,34 @@ test("catm full journey on the loaded extension", async () => {
       await expect(libraryRow).toHaveCount(1);
       await expect(libraryRow.locator(".voice-tag")).toHaveText("am_michael");
 
+      // Second "Read it to me" while the panel is still open used to be a
+      // silent no-op (the ingest guard refused to clobber any non-empty doc).
+      // It should now save the current session (no-op when unmodified) and
+      // swap in the new text + synth.
+      const SECOND_SHARE = "A shorter follow-up sentence shared while the side panel was open.";
+      const prevAudioSrc = await audio.evaluate((el) => (el as HTMLAudioElement).src);
+      await sw.evaluate(
+        async ({ text }: { text: string }) =>
+          // @ts-expect-error global injected by background.js
+          (globalThis as never).__catmIngestSelection({ text, windowId: null }),
+        { text: SECOND_SHARE },
+      );
+      await expect(page.getByTestId("text-input")).toContainText(SECOND_SHARE);
+      await expect
+        .poll(async () => audio.evaluate((el) => (el as HTMLAudioElement).src))
+        .not.toBe(prevAudioSrc);
+      await expect
+        .poll(async () => audio.evaluate((el) => (el as HTMLAudioElement).duration), {
+          timeout: 30_000,
+        })
+        .toBeGreaterThan(1);
+      await expect(libraryRow).toHaveCount(2);
+
+      // Drop the older row so the rest of the journey keeps operating on a
+      // single library entry.
+      await page.getByTestId("library-delete").last().click();
+      await expect(libraryRow).toHaveCount(1);
+
       await page.reload();
       await page.waitForFunction(() => document.documentElement.dataset.ttsDevice !== undefined);
       await expect(libraryRow).toHaveCount(1);
