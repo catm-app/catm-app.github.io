@@ -1,4 +1,3 @@
-import { execSync } from "node:child_process";
 import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -26,7 +25,9 @@ const EDITED_TEXT = `${LONG_TEXT} This sentence was appended after editing.`;
 
 test.beforeAll(() => {
   if (!existsSync(APP_INDEX)) {
-    execSync("npm run build", { stdio: "inherit", cwd: REPO_ROOT });
+    throw new Error(
+      `Extension is not built. Run 'npm run build' before 'npx playwright test', or use 'npm test'.`,
+    );
   }
 });
 
@@ -91,8 +92,9 @@ test("catm full journey on the loaded extension", async () => {
       await expect(page.getByTestId("text-input")).toContainText(LONG_TEXT);
       await expect(page.getByTestId("text-input")).toContainText(SOURCE_URL);
 
+      // "Read it to me" implies action — no speak.click() here. The ingest
+      // handler in App.tsx queues synth automatically when the worker is ready.
       const audio = page.getByTestId("audio");
-      await page.getByTestId("speak").click();
       await expect
         .poll(async () => audio.evaluate((el) => (el as HTMLAudioElement).src))
         .toMatch(/^blob:/);

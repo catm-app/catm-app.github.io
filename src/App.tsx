@@ -177,6 +177,7 @@ export function App(): React.JSX.Element {
     new Map<number, (r: { pcm: Float32Array; sampleRate: number }) => void>(),
   );
   const activeSynthsRef = useRef(new Map<number, ActiveSynth>());
+  const pendingAutoSynthRef = useRef(false);
   const progressMapRef = useRef<Map<string, { loaded: number; total: number }>>(new Map());
 
   const modified =
@@ -210,17 +211,34 @@ export function App(): React.JSX.Element {
     });
   }, []);
 
+  // "Read it to me" implies action — when a share lands in an empty draft we
+  // queue synth and let the playToken bump auto-play once segments buffer.
   // Ingest only into an empty draft so a share never clobbers unsaved work.
   useEffect(() => {
     const ingest = (draft: IngestedDraft) => {
       if (!draft.text || draft.text.length === 0) return;
+      let consumed = false;
       setDoc((d) => {
         if (d.id !== null || d.sourceText.length > 0) return d;
+        consumed = true;
         return { ...d, sourceText: draft.text };
       });
+      if (consumed) pendingAutoSynthRef.current = true;
     };
     return consumeExtensionShare(ingest);
   }, []);
+
+  // Drain the pending auto-synth flag once the worker is ready and the draft
+  // text has actually committed. onRead reads doc.sourceText from its closure,
+  // so we must fire from an effect — not inline in the ingest callback.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: onRead recreates every render; the ref-guard short-circuits unintended re-fires
+  useEffect(() => {
+    if (!pendingAutoSynthRef.current) return;
+    if (status.kind !== "ready") return;
+    if (doc.sourceText.trim().length === 0) return;
+    pendingAutoSynthRef.current = false;
+    void onRead();
+  }, [status.kind, doc.sourceText]);
 
   // 1 Hz throughput rotation.
   useEffect(() => {

@@ -21,10 +21,10 @@
     "lint": "biome check .",
     "check:marketing": "node scripts/check-marketing.mjs",
     "format": "biome format --write .",
-    "test": "vitest run && playwright test",
+    "test": "vitest run && npm run build && playwright test",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "npm run build && playwright test"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
