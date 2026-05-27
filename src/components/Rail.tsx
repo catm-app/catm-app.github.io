@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import type { PerfState } from "../App";
 import type { SessionMeta, StorageBreakdown } from "../storage/sessionStore";
+import type { PerfState } from "../types";
 import { BrandMark } from "./BrandMark";
 import { PerfWidget } from "./PerfWidget";
 

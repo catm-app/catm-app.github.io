@@ -87,6 +87,17 @@ The worker picks `device: "webgpu"` when `navigator.gpu` exists, otherwise `wasm
 - **Side-panel layout.** Top-to-bottom: sticky `.panel-brandbar` (catm logo + name + live WebGPU/WASM device chip + popout button) → `<main>` (untouched ReaderView) → full `<Rail>` (sessions, perf, model, storage, reset). CSS `order` on `.shell-panel` reorders the desktop rail-then-main into brand-then-main-then-rail. The Rail's internal `.brand` is hidden in panel mode to avoid duplicating the brandbar.
 - **Popout to tab.** `<PopoutButton>` in the brandbar (only rendered when `IS_SIDE_PANEL`) calls `chrome.tabs.create({ url: chrome.runtime.getURL("app/index.html?ctx=tab") })` then `window.close()`. Same origin as the panel → shared OPFS/IDB/model cache; the `window.close()` ensures only one view at a time, no IDB race. The tab renders the full desktop shell (rail beside main).
 
+### Demo renderer
+
+`demo/` is a sibling Remotion project that produces `docs/demo.gif` (README hero) and `docs/cws/*.png` (CWS listing screenshots). It is **not** part of the extension build — its own `package.json` / `node_modules`, never imported from `src/`. Renderer entry: `./demo/render.sh` (Docker-based; bakes Chrome Headless Shell + Linux libs into a `catm-demo-renderer` image so the host doesn't need them).
+
+Two non-obvious dependencies in `src/` exist for the demo and must not be "cleaned up":
+
+- **Runtime-free type modules.** `PerfState` lives in `src/types.ts` and `SessionMeta`/`StorageBreakdown` live in `src/storage/sessionTypes.ts` (re-exported by `sessionStore.ts` for callers). The demo bundle imports these as types — if you merge them back into `App.tsx` or `sessionStore.ts`, the demo bundle drags in idb/fflate/worker code at build time.
+- **`VoiceChip` `forceOpen` prop.** Used only by the demo to render the picker visibly. Don't remove it.
+
+Demo scenes (`demo/src/scenes/*.tsx`) reuse the real components from `../src/components/` via relative imports and load `../src/app.css` directly, so the visual identity tracks the app. Side-panel scenes use a flex layout (`article: flex 1` + `panel: width 420`) so the article reflows when the panel opens — mirrors Chrome's actual side panel behaviour. A single composition takes an `overlay` prop so the same scenes render both the README GIF (with copy overlays) and clean CWS stills via `--props='{"overlay":false}'`.
+
 ## Conventions
 
 - **TypeScript is strict** with `noUncheckedIndexedAccess`, `noUnusedLocals/Parameters`, `verbatimModuleSyntax`. Type-only imports must use `import type`.

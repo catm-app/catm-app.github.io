@@ -1,30 +1,26 @@
-// Design tokens lifted directly from catm's src/app.css so the demo
-// visually matches the real app.
-
+// Design tokens mirroring src/app.css. Used by overlay copy and scenes
+// that need design values outside of CSS (e.g. SVGs, gradient strings).
 import { loadFont as loadInter } from "@remotion/google-fonts/Inter";
 import { loadFont as loadJetBrainsMono } from "@remotion/google-fonts/JetBrainsMono";
 
-// Fonts are loaded eagerly at module load. Without this the headless Chrome
-// in the renderer would silently fall back to DejaVu Sans / Mono and the
-// video would not match catm's visual identity.
 const { fontFamily: INTER_FAMILY } = loadInter();
 const { fontFamily: JBM_FAMILY } = loadJetBrainsMono();
 
 export const FPS = 30;
 
+// Scene durations in frames. The frame midpoints below must stay in sync
+// with render.sh's CWS still extraction.
 export const SCENES = {
-  hook: 150, // 5s
-  promise: 150, // 5s
-  privacy: 300, // 10s
-  progressive: 360, // 12s
-  how: 240, // 8s
-  cta: 180, // 6s
+  onboarding: 150, //  5s — opens the side panel onboarding
+  sidepanel: 360, // 12s — reading with highlight
+  voices: 180, //  6s — voice picker open
+  fulltab: 360, // 12s — popout + library + composer
+  privacy: 180, //  6s — storage breakdown
+  cta: 120, //  4s — Add to Chrome
 } as const;
 
-export const TRANSITION_FRAMES = 12; // 0.4s
+export const TRANSITION_FRAMES = 12;
 
-// Total frames in the composition.
-// Sum of sequences minus overlap from transitions.
 const SEQ_TOTAL = Object.values(SCENES).reduce((a, b) => a + b, 0);
 const NUM_TRANSITIONS = Object.keys(SCENES).length - 1;
 export const TOTAL_FRAMES = SEQ_TOTAL - NUM_TRANSITIONS * TRANSITION_FRAMES;
@@ -41,7 +37,6 @@ export const COLORS = {
   ink3: "#8c92a3",
   ink4: "#b4b8c4",
   accent: "#5b6cff",
-  accentMid: "#7480ff",
   accentEnd: "#8a98ff",
   accentSoft: "#eef0ff",
   accentInk: "#3b48cc",
@@ -49,14 +44,13 @@ export const COLORS = {
   goodSoft: "rgba(22, 160, 111, 0.10)",
   warn: "#b6552b",
   danger: "#c44a4a",
-  dangerSoft: "#fde8e8",
 } as const;
 
 export const GRADIENT = `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.accentEnd})`;
 
 export const FONT = {
-  sans: `${INTER_FAMILY}, ui-sans-serif, system-ui, -apple-system, sans-serif`,
-  mono: `${JBM_FAMILY}, ui-monospace, "SF Mono", Menlo, monospace`,
+  sans: `${INTER_FAMILY}, "Inter Variable", ui-sans-serif, system-ui, -apple-system, sans-serif`,
+  mono: `${JBM_FAMILY}, "JetBrains Mono Variable", ui-monospace, monospace`,
 } as const;
 
 export const SHADOW = {

@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
-# Build the renderer image (cached) and render the demo to ./out/demo.mp4.
+# Build the renderer image (cached) and render the demo to ./out/demo.mp4
+# and ./out/still-*.png for CWS screenshots. Then build the README GIF.
+#
 # Usage:
-#   ./render.sh                       — full video to out/demo.mp4
-#   ./render.sh still 75              — single frame to out/still-75.jpg
-#   ./render.sh stills                — one still per scene to out/scene-*.jpg
-#   ./render.sh gif [width]           — convert out/demo.mp4 → ../docs/demo.gif
-#                                       (default 960px wide, palette-optimised)
+#   ./render.sh                  — full pipeline: video, stills, GIF
+#   ./render.sh video            — full video to out/demo.mp4
+#   ./render.sh stills           — one PNG per scene to out/still-*.png (overlay off)
+#   ./render.sh still <frame>    — single PNG (overlay off) to out/still-<frame>.png
+#   ./render.sh gif [width]      — convert out/demo.mp4 → ../docs/demo.gif
+#                                  (default 960px wide, palette-optimised)
+
 set -euo pipefail
 
 IMAGE=catm-demo-renderer
@@ -13,49 +17,60 @@ FFMPEG_IMAGE=linuxserver/ffmpeg
 cd "$(dirname "$0")"
 mkdir -p out
 
-# The gif step only needs ffmpeg, not the Remotion renderer image.
-if [ "${1:-}" != "gif" ]; then
+build_image() {
   docker build -t "$IMAGE" .
-fi
+}
 
-# Frame midpoints for each scene, accounting for 12-frame transition overlap
-# between adjacent sequences. Layout:
-#   hook        0    – 150   mid 75
-#   promise     138  – 288   mid 213
-#   privacy     276  – 576   mid 426
-#   progressive 564  – 924   mid 744
-#   how         912  – 1152  mid 1032
-#   cta         1140 – 1320  mid 1236
-case "${1:-video}" in
+run_remotion() {
+  # Bind-mount the repo root so the demo can resolve `@app/*` → ../src.
+  # The container's /work/demo/node_modules wins via an anonymous volume.
+  docker run --rm \
+    -v "$(cd .. && pwd)":/work \
+    -v /work/demo/node_modules \
+    -w /work/demo \
+    "$IMAGE" \
+    "$@"
+}
+
+# Stills with overlay disabled, one per scene midpoint. Frames must be kept
+# in sync with the SCENES timing in src/Demo.tsx.
+render_stills() {
+  build_image
+  for pair in "75:onboarding" "330:sidepanel" "600:voices" "870:fulltab" "1140:privacy"; do
+    frame="${pair%%:*}"
+    name="${pair##*:}"
+    echo "── still: $name (frame $frame) ──"
+    run_remotion npx remotion still Demo \
+      --frame="$frame" \
+      --props='{"overlay":false}' \
+      "out/still-${name}.png"
+  done
+}
+
+case "${1:-all}" in
+  video)
+    build_image
+    run_remotion npx remotion render Demo out/demo.mp4
+    ;;
   still)
-    frame="${2:-75}"
-    docker run --rm \
-      -v "$(pwd)":/work \
-      -v /work/node_modules \
-      "$IMAGE" \
-      npx remotion still Demo --frame="$frame" "out/still-${frame}.jpg"
+    build_image
+    frame="${2:-330}"
+    run_remotion npx remotion still Demo \
+      --frame="$frame" \
+      --props='{"overlay":false}' \
+      "out/still-${frame}.png"
     ;;
   stills)
-    for pair in "75:hook" "213:promise" "426:privacy" "744:progressive" "1032:how" "1236:cta"; do
-      frame="${pair%%:*}"
-      name="${pair##*:}"
-      echo "── still: $name (frame $frame) ──"
-      docker run --rm \
-        -v "$(pwd)":/work \
-        -v /work/node_modules \
-        "$IMAGE" \
-        npx remotion still Demo --frame="$frame" "out/scene-${name}.jpg"
-    done
+    render_stills
     ;;
   gif)
     width="${2:-960}"
-    test -f out/demo.mp4 || { echo "out/demo.mp4 missing — run ./render.sh first"; exit 1; }
+    test -f out/demo.mp4 || { echo "out/demo.mp4 missing — run ./render.sh video first"; exit 1; }
     mkdir -p ../docs
-    # Mount the repo root so paths can span demo/out → docs/.
     repo_root="$(cd .. && pwd)"
-    # Two-pass palette: pass 1 distills the 256 best-fitting colours for this
+    # Two-pass palette: pass 1 distills 256 best-fitting colours for this
     # video's content, pass 2 maps frames onto them. Roughly half the file
-    # size of a default 256-colour quantisation at the same perceived quality.
+    # size of default 256-colour quantisation at the same perceived quality.
     docker run --rm -v "$repo_root":/work -w /work "$FFMPEG_IMAGE" \
       -i demo/out/demo.mp4 \
       -vf "fps=15,scale=${width}:-1:flags=lanczos,palettegen=stats_mode=diff" \
@@ -68,14 +83,17 @@ case "${1:-video}" in
     echo
     echo "Wrote: $(realpath ../docs/demo.gif)"
     ls -lh ../docs/demo.gif
-    exit 0
     ;;
-  video|*)
-    docker run --rm \
-      -v "$(pwd)":/work \
-      -v /work/node_modules \
-      "$IMAGE" \
-      npx remotion render Demo out/demo.mp4
+  all)
+    build_image
+    run_remotion npx remotion render Demo out/demo.mp4
+    render_stills
+    "$0" gif
+    ;;
+  *)
+    echo "Unknown command: $1" >&2
+    sed -n '2,12p' "$0" >&2
+    exit 2
     ;;
 esac
 

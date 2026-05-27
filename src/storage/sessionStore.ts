@@ -1,30 +1,9 @@
 import { strToU8, zipSync } from "fflate";
 import { type DBSchema, type IDBPDatabase, openDB } from "idb";
 import type { VoiceId } from "../worker/kokoro.worker";
+import type { SessionMeta, StorageBreakdown } from "./sessionTypes";
 
-export interface SessionMeta {
-  id: string;
-  title: string;
-  sourceText: string;
-  createdAt: number;
-  durationSec: number;
-  lastPositionSec: number;
-  finishedAt: number | null;
-  voice: VoiceId;
-  modelId: string;
-  // Set once the user renames a session manually; auto-derivation from
-  // sourceText (in resetSession) is skipped while this is true. Older
-  // records lack the field and read as undefined — equivalent to false.
-  titleEdited?: boolean;
-  // Per-chunk audio duration in seconds, in chunk order. Used to map
-  // audio.currentTime back to a chunk of source text for highlighting.
-  // Older records lack this and skip the highlight feature.
-  chunkDurations?: number[];
-  // Source-text slice for each emitted audio chunk, in chunk order. Mirrors
-  // chunkDurations 1:1 and lets the highlighter map currentTime → text range
-  // without re-running our own chunker.
-  chunkTexts?: string[];
-}
+export type { SessionMeta, StorageBreakdown };
 
 const DEFAULT_MODEL = "kokoro-82m-low";
 
@@ -330,23 +309,6 @@ export async function buildSessionExport(meta: SessionMeta): Promise<ExportBundl
   // Store-only: the MP4 payload is already AAC-compressed; deflate saves nothing.
   const zipped = zipSync(entries, { level: 0 });
   return { bytes: zipped, filename: `${folder}.zip` };
-}
-
-export interface StorageBreakdown {
-  /** Bytes in OPFS sessions/ — recorded audio. Measured exactly. */
-  sessionsBytes: number;
-  /**
-   * Bytes attributed to the cached voice + everything else this origin
-   * holds (Cache Storage, IndexedDB metadata). Derived as
-   * `usage - sessionsBytes`, clamped to >= 0.
-   */
-  voiceBytes: number;
-  /** Per-origin quota the browser currently grants. NOT device-free space. */
-  quotaBytes: number;
-  /** quotaBytes − total usage, clamped to >= 0. */
-  headroomBytes: number;
-  /** navigator.storage.persisted() — true means data is exempt from eviction. */
-  persisted: boolean;
 }
 
 export async function measureStorage(): Promise<StorageBreakdown> {

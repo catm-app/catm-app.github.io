@@ -24,23 +24,10 @@ import {
   writePlaylist,
   writeSegment,
 } from "./storage/sessionStore";
-import type { AppStatus, DocState } from "./types";
+import type { AppStatus, DocState, PerfState } from "./types";
 import { OnboardingView } from "./views/OnboardingView";
 import { ReaderView } from "./views/ReaderView";
 import type { InMsg, KokoroWorkerConfig, OutMsg, VoiceId } from "./worker/kokoro.worker";
-import type { DeviceInfo } from "./worker/workerProtocol";
-
-export interface PerfState {
-  device: DeviceInfo | null;
-  synthSamplesPerSec: number[]; // 60 samples of PCM samples/sec
-  // Rolling memory readings (MB) from performance.measureUserAgentSpecificMemory().
-  // NaN entries mean "not yet sampled" or "API unavailable" for that slot.
-  memoryMb: number[];
-  // Set once isolation is known. null means "not yet known"; false means
-  // the API is unavailable (no COI / unsupported browser).
-  memoryApiAvailable: boolean | null;
-  lastSynth: { wallMs: number; audioSec: number } | null;
-}
 
 const MEM_SAMPLE_INTERVAL_MS = 5_000;
 const MEM_WINDOW = 60; // 60 samples × 5 s = 5 min of history

@@ -1,4 +1,4 @@
-import type { PerfState } from "../App";
+import type { PerfState } from "../types";
 
 interface PerfWidgetProps {
   perf: PerfState;

@@ -23,6 +23,9 @@ interface VoiceChipProps {
   onChangeVoice: (v: VoiceId) => void;
   onPreviewVoice: (v: VoiceId) => void;
   disabled?: boolean;
+  // Force the popover open regardless of internal state. Used only by the
+  // Remotion demo to render the picker visibly in stills/video.
+  forceOpen?: boolean;
 }
 
 export function VoiceChip({
@@ -32,13 +35,15 @@ export function VoiceChip({
   onChangeVoice,
   onPreviewVoice,
   disabled,
+  forceOpen,
 }: VoiceChipProps): React.JSX.Element {
-  const [open, setOpen] = useState(false);
+  const [openState, setOpen] = useState(false);
+  const open = forceOpen ?? openState;
   const wrapRef = useRef<HTMLSpanElement | null>(null);
   const canPreview = status.kind === "ready" && previewVoice === null;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || forceOpen) return;
     function onDown(e: MouseEvent): void {
       if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
     }
@@ -51,7 +56,7 @@ export function VoiceChip({
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, forceOpen]);
 
   return (
     <span className="chip-wrap" ref={wrapRef}>

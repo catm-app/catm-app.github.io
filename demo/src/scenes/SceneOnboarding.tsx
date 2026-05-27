@@ -1,0 +1,100 @@
+// Opening scene. A web article is in the browser viewport; user selects a
+// sentence, right-click context menu appears with the catm action
+// highlighted, then the side panel opens — reflowing the article to make
+// room, the way Chrome's actual side panel does.
+import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { ARTICLE_LEAD, MOCK_SESSIONS, SAMPLE_CHUNK_DURATIONS, SAMPLE_CHUNKS } from "../data";
+import { CopyOverlay } from "../overlay/CopyOverlay";
+import { DemoApp } from "../shells/DemoApp";
+import { MockWebpage } from "../shells/MockWebpage";
+
+const SELECTION_START_FRAME = 18;
+const MENU_FRAME = 48;
+const PANEL_FRAME = 80;
+const SIDE_PANEL_TARGET_WIDTH = 420;
+
+interface SceneOnboardingProps {
+  overlay: boolean;
+}
+
+export function SceneOnboarding({ overlay }: SceneOnboardingProps): React.JSX.Element {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+
+  // Selection sweep across the first sentence.
+  const selectionLen = interpolate(
+    frame,
+    [SELECTION_START_FRAME, SELECTION_START_FRAME + 18],
+    [0, ARTICLE_LEAD.indexOf(".") + 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+  );
+  const selection = selectionLen > 0 ? { start: 0, end: Math.round(selectionLen) } : null;
+
+  // Context menu visible after selection settles, until the panel takes over.
+  const menuOpen = frame >= MENU_FRAME && frame < PANEL_FRAME + 4;
+
+  // Side panel grows in from 0 → 420 px wide. The article reflows because
+  // we use flexbox — exactly how Chrome's side panel behaves.
+  const panelProgress = spring({
+    frame: frame - PANEL_FRAME,
+    fps,
+    config: { damping: 200, stiffness: 90, mass: 0.6 },
+  });
+  const panelWidth = panelProgress * SIDE_PANEL_TARGET_WIDTH;
+
+  return (
+    <AbsoluteFill style={{ background: "#1a1c20", display: "flex", flexDirection: "row" }}>
+      <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+        <MockWebpage
+          selection={selection}
+          contextMenu={menuOpen ? { x: 460, y: 320 } : null}
+        />
+      </div>
+
+      <div
+        style={{
+          width: panelWidth,
+          flexShrink: 0,
+          background: "var(--bg-0)",
+          borderLeft: "1px solid var(--border)",
+          // Mild shadow only while opening — matches Chrome's panel reveal.
+          boxShadow:
+            panelProgress > 0 && panelProgress < 1
+              ? "-1px 0 0 rgba(13,14,18,0.06), -12px 0 24px rgba(13,14,18,0.08)"
+              : "-1px 0 0 rgba(13,14,18,0.06)",
+          overflow: "hidden",
+        }}
+      >
+        <div style={{ width: SIDE_PANEL_TARGET_WIDTH, height: "100%" }}>
+          <DemoApp
+            mode="panel"
+            sessions={MOCK_SESSIONS.slice(0, 1)}
+            activeId={"s-current"}
+            title="The deep sea has been hiding from us"
+            sourceText={ARTICLE_LEAD}
+            voice="af_heart"
+            speed={1.25}
+            status={{ kind: "ready", device: "webgpu" }}
+            currentTime={0}
+            durationSec={40}
+            chunkDurations={SAMPLE_CHUNK_DURATIONS}
+            chunkTexts={SAMPLE_CHUNKS}
+            playing={false}
+            showDock={false}
+          />
+        </div>
+      </div>
+
+      <CopyOverlay
+        overlay={overlay}
+        startFrame={PANEL_FRAME + 12}
+        title={
+          <>
+            Select. <em style={{ color: "#5b6cff", fontStyle: "normal" }}>Read it to me.</em>
+          </>
+        }
+        subtitle="Right-click any text on any page. The side panel opens with your selection ready to listen to."
+      />
+    </AbsoluteFill>
+  );
+}

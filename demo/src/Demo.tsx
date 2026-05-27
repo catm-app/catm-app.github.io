@@ -1,61 +1,55 @@
+// Top-level composition. Chains scenes in sequence with cross-fades.
 import { linearTiming, TransitionSeries } from "@remotion/transitions";
 import { fade } from "@remotion/transitions/fade";
-import { slide } from "@remotion/transitions/slide";
 import { AbsoluteFill } from "remotion";
 import { SceneCTA } from "./scenes/SceneCTA";
-import { SceneHook } from "./scenes/SceneHook";
-import { SceneHow } from "./scenes/SceneHow";
+import { SceneFullTab } from "./scenes/SceneFullTab";
+import { SceneOnboarding } from "./scenes/SceneOnboarding";
 import { ScenePrivacy } from "./scenes/ScenePrivacy";
-import { SceneProgressive } from "./scenes/SceneProgressive";
-import { ScenePromise } from "./scenes/ScenePromise";
+import { SceneSidePanel } from "./scenes/SceneSidePanel";
+import { SceneVoices } from "./scenes/SceneVoices";
 import { COLORS, SCENES, TRANSITION_FRAMES } from "./theme";
+
+interface DemoProps {
+  overlay: boolean;
+}
 
 const fadeT = () => ({
   presentation: fade(),
   timing: linearTiming({ durationInFrames: TRANSITION_FRAMES }),
 });
 
-const slideT = () => ({
-  presentation: slide({ direction: "from-bottom" }),
-  timing: linearTiming({ durationInFrames: TRANSITION_FRAMES }),
-});
-
-export function Demo() {
+export function Demo({ overlay }: DemoProps): React.JSX.Element {
   return (
-    <AbsoluteFill style={{ backgroundColor: COLORS.bg }}>
+    <AbsoluteFill style={{ background: COLORS.bg }}>
       <TransitionSeries>
-        <TransitionSeries.Sequence durationInFrames={SCENES.hook}>
-          <SceneHook />
+        <TransitionSeries.Sequence durationInFrames={SCENES.onboarding}>
+          <SceneOnboarding overlay={overlay} />
         </TransitionSeries.Sequence>
+        <TransitionSeries.Transition {...fadeT()} />
 
-        <TransitionSeries.Transition {...slideT()} />
-
-        <TransitionSeries.Sequence durationInFrames={SCENES.promise}>
-          <ScenePromise />
+        <TransitionSeries.Sequence durationInFrames={SCENES.sidepanel}>
+          <SceneSidePanel overlay={overlay} />
         </TransitionSeries.Sequence>
+        <TransitionSeries.Transition {...fadeT()} />
 
+        <TransitionSeries.Sequence durationInFrames={SCENES.voices}>
+          <SceneVoices overlay={overlay} />
+        </TransitionSeries.Sequence>
+        <TransitionSeries.Transition {...fadeT()} />
+
+        <TransitionSeries.Sequence durationInFrames={SCENES.fulltab}>
+          <SceneFullTab overlay={overlay} />
+        </TransitionSeries.Sequence>
         <TransitionSeries.Transition {...fadeT()} />
 
         <TransitionSeries.Sequence durationInFrames={SCENES.privacy}>
-          <ScenePrivacy />
+          <ScenePrivacy overlay={overlay} />
         </TransitionSeries.Sequence>
-
-        <TransitionSeries.Transition {...fadeT()} />
-
-        <TransitionSeries.Sequence durationInFrames={SCENES.progressive}>
-          <SceneProgressive />
-        </TransitionSeries.Sequence>
-
-        <TransitionSeries.Transition {...slideT()} />
-
-        <TransitionSeries.Sequence durationInFrames={SCENES.how}>
-          <SceneHow />
-        </TransitionSeries.Sequence>
-
         <TransitionSeries.Transition {...fadeT()} />
 
         <TransitionSeries.Sequence durationInFrames={SCENES.cta}>
-          <SceneCTA />
+          <SceneCTA overlay={overlay} />
         </TransitionSeries.Sequence>
       </TransitionSeries>
     </AbsoluteFill>
