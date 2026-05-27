@@ -1,15 +1,19 @@
-# Releases the "Send to catm" Chrome extension.
+# Releases the catm Chrome extension.
 #
 # Triggers
-#   • Push to main that touches anything under extension/
-#   • Manual workflow_dispatch
+#   • Test workflow on main completing successfully — gated on
+#     `extension/manifest.json` version having actually bumped vs the
+#     parent commit. Pushes that change the bundle without bumping ride
+#     along with the next bump.
+#   • Manual workflow_dispatch (skips the test-gate; intended for
+#     re-uploading a known-good build).
 #
-# What it does
-#   • Always: builds extension.zip, uploads it as a CI artifact (Actions tab)
-#   • On manifest.json version bump: also creates a GitHub Release tagged
-#     ext-v<version> with the zip attached
-#   • If the CWS_* secrets are configured: also uploads + publishes the new
-#     version to the Chrome Web Store via chrome-webstore-upload-cli
+# What it does (only if the version bumped)
+#   • Builds extension/app/ via `npm run build`, zips it.
+#   • Uploads the zip as a workflow artifact.
+#   • Creates a GitHub Release tagged ext-v<version> with the zip attached.
+#   • If CWS_* secrets are configured: uploads + publishes to the Chrome
+#     Web Store via chrome-webstore-upload-cli.
 #
 # Secrets to add (Repo settings → Secrets and variables → Actions)
 #   CWS_APP_ID         — extension ID from the Chrome Web Store dashboard
@@ -18,22 +22,14 @@
 #   CWS_REFRESH_TOKEN  — one-time OAuth refresh token; the setup flow is
 #                        documented at
 #                        https://github.com/fregante/chrome-webstore-upload-keys
-#
-# Until those secrets exist the workflow will still build the zip and attach
-# it to a GitHub Release on each version bump — you can upload it manually
-# from the Releases page.
 
 name: Release extension
 
 on:
-  push:
+  workflow_run:
+    workflows: ['Test']
+    types: [completed]
     branches: [main]
-    # A release only happens when extension/manifest.json's version bumps,
-    # so trigger only on that file. Pushes to src/, package*, vite.config —
-    # which change the bundle but not the release identity — don't fire
-    # the workflow; they ride along with the next manifest bump.
-    paths:
-      - 'extension/manifest.json'
   workflow_dispatch:
 
 permissions:
@@ -44,12 +40,50 @@ concurrency:
   cancel-in-progress: false  # never cancel an in-flight publish
 
 jobs:
+  guard:
+    # Skip when the upstream Test workflow didn't succeed. Manual dispatch
+    # has no workflow_run context; the first clause short-circuits.
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      bumped: ${{ steps.ver.outputs.bumped }}
+      current: ${{ steps.ver.outputs.current }}
+      sha: ${{ steps.ver.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # workflow_run gives us the upstream commit; manual dispatch uses HEAD.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          fetch-depth: 2
+
+      - name: Detect version bump
+        id: ver
+        run: |
+          current=$(jq -r .version extension/manifest.json)
+          sha=$(git rev-parse HEAD)
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          if git cat-file -e HEAD~1:extension/manifest.json 2>/dev/null; then
+            previous=$(git show HEAD~1:extension/manifest.json | jq -r .version)
+          else
+            previous=""
+          fi
+          if [ "$current" != "$previous" ]; then
+            echo "bumped=true" >> "$GITHUB_OUTPUT"
+            echo "Version bumped: ${previous:-<none>} → $current"
+          else
+            echo "bumped=false" >> "$GITHUB_OUTPUT"
+            echo "Version unchanged ($current) — skipping release"
+          fi
+
   release:
+    needs: guard
+    if: needs.guard.outputs.bumped == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # we compare manifest.json against the parent commit
+          ref: ${{ needs.guard.outputs.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -65,46 +99,27 @@ jobs:
         # step or the artefact would ship without the React app.
         run: npm run build
 
-      - name: Detect version bump
-        id: ver
-        run: |
-          current=$(jq -r .version extension/manifest.json)
-          echo "current=$current" >> "$GITHUB_OUTPUT"
-          if git cat-file -e HEAD~1:extension/manifest.json 2>/dev/null; then
-            previous=$(git show HEAD~1:extension/manifest.json | jq -r .version)
-          else
-            previous=""
-          fi
-          if [ "$current" != "$previous" ]; then
-            echo "bumped=true" >> "$GITHUB_OUTPUT"
-            echo "Version bumped: ${previous:-<none>} → $current"
-          else
-            echo "bumped=false" >> "$GITHUB_OUTPUT"
-            echo "Version unchanged ($current) — will build zip artefact but skip release"
-          fi
-
       - name: Build extension.zip
         run: ./scripts/package-extension.sh
 
       - name: Upload zip as workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: extension-v${{ steps.ver.outputs.current }}-${{ github.sha }}
+          name: extension-v${{ needs.guard.outputs.current }}-${{ needs.guard.outputs.sha }}
           path: extension.zip
           retention-days: 90
 
       - name: Create GitHub Release
-        if: steps.ver.outputs.bumped == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="ext-v${{ steps.ver.outputs.current }}"
+          tag="ext-v${{ needs.guard.outputs.current }}"
           gh release create "$tag" extension.zip \
-            --title "Extension v${{ steps.ver.outputs.current }}" \
-            --notes "Auto-built from ${GITHUB_SHA::7}. If CWS auto-publish is not configured, upload extension.zip to the Chrome Web Store dashboard manually."
+            --title "Extension v${{ needs.guard.outputs.current }}" \
+            --target "${{ needs.guard.outputs.sha }}" \
+            --notes "Auto-built from ${{ needs.guard.outputs.sha }}. If CWS auto-publish is not configured, upload extension.zip to the Chrome Web Store dashboard manually."
 
       - name: Publish to Chrome Web Store
-        if: steps.ver.outputs.bumped == 'true'
         env:
           CWS_APP_ID: ${{ secrets.CWS_APP_ID }}
           CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
