@@ -3,10 +3,11 @@
 # and ./out/still-*.png for CWS screenshots. Then build the README GIF.
 #
 # Usage:
-#   ./render.sh                  — full pipeline: video, stills, GIF
+#   ./render.sh                  — full pipeline: video, stills, tiles, GIF
 #   ./render.sh video            — full video to out/demo.mp4
 #   ./render.sh stills           — one PNG per scene to out/still-*.png (overlay off)
 #   ./render.sh still <frame>    — single PNG (overlay off) to out/still-<frame>.png
+#   ./render.sh tiles            — CWS promo tiles to out/promo-{small,marquee}.png
 #   ./render.sh gif [width]      — convert out/demo.mp4 → ../docs/demo.gif
 #                                  (default 960px wide, palette-optimised)
 
@@ -63,6 +64,13 @@ case "${1:-all}" in
   stills)
     render_stills
     ;;
+  tiles)
+    build_image
+    echo "── tile: promo-small (440×280) ──"
+    run_remotion npx remotion still PromoSmall --frame=0 out/promo-small.png
+    echo "── tile: promo-marquee (1400×560) ──"
+    run_remotion npx remotion still PromoMarquee --frame=0 out/promo-marquee.png
+    ;;
   gif)
     width="${2:-960}"
     test -f out/demo.mp4 || { echo "out/demo.mp4 missing — run ./render.sh video first"; exit 1; }
@@ -88,6 +96,10 @@ case "${1:-all}" in
     build_image
     run_remotion npx remotion render Demo out/demo.mp4
     render_stills
+    echo "── tile: promo-small (440×280) ──"
+    run_remotion npx remotion still PromoSmall --frame=0 out/promo-small.png
+    echo "── tile: promo-marquee (1400×560) ──"
+    run_remotion npx remotion still PromoMarquee --frame=0 out/promo-marquee.png
     "$0" gif
     ;;
   *)
