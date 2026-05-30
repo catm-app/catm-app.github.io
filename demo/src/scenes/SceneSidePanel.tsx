@@ -1,7 +1,8 @@
 // Side-panel playback scene. Article reflowed to a narrower column on the
 // left; side panel pinned to the right showing the reader with audio
-// playing and the highlight scrolling through chunks.
-import { AbsoluteFill, useCurrentFrame } from "remotion";
+// playing and the highlight scrolling through chunks. In the back half the
+// history drawer slides in to show the recordings library, then closes.
+import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
 import { MOCK_SESSIONS, SAMPLE_CHUNK_DURATIONS, SAMPLE_CHUNKS, SAMPLE_TEXT } from "../data";
 import { CopyOverlay } from "../overlay/CopyOverlay";
 import { DemoApp } from "../shells/DemoApp";
@@ -9,6 +10,14 @@ import { MockWebpage } from "../shells/MockWebpage";
 
 const SIDE_PANEL_WIDTH = 420;
 const TOTAL_DURATION_SEC = 40;
+
+// Drawer beat, in local scene frames. Kept after the CWS still frame (local
+// ~192, composition 330) so the still stays a clean reading shot while the
+// video shows the slide-in.
+const DRAWER_IN = 215;
+const DRAWER_FULL = 236;
+const DRAWER_OUT = 318;
+const DRAWER_GONE = 340;
 
 interface SceneSidePanelProps {
   overlay: boolean;
@@ -26,6 +35,26 @@ export function SceneSidePanel({ overlay }: SceneSidePanelProps): React.JSX.Elem
   const total = cumulative[cumulative.length - 1] ?? TOTAL_DURATION_SEC;
   const clampedTime = Math.min(currentTime, total - 0.1);
 
+  const drawerProgress = interpolate(
+    frame,
+    [DRAWER_IN, DRAWER_FULL, DRAWER_OUT, DRAWER_GONE],
+    [0, 1, 1, 0],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+  );
+
+  // Cross-fade the copy: reading line out as the drawer opens, library line
+  // in while it's open.
+  const readingOpacity = interpolate(frame, [DRAWER_IN - 25, DRAWER_IN - 5], [1, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const libraryOpacity = interpolate(
+    frame,
+    [DRAWER_FULL, DRAWER_FULL + 10, DRAWER_OUT - 6, DRAWER_OUT + 6],
+    [0, 1, 1, 0],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+  );
+
   return (
     <AbsoluteFill style={{ background: "#1a1c20", display: "flex", flexDirection: "row" }}>
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
@@ -42,7 +71,7 @@ export function SceneSidePanel({ overlay }: SceneSidePanelProps): React.JSX.Elem
       >
         <DemoApp
           mode="panel"
-          sessions={MOCK_SESSIONS.slice(0, 1)}
+          sessions={MOCK_SESSIONS}
           activeId={"s-current"}
           title="The deep sea has been hiding from us"
           sourceText={SAMPLE_TEXT}
@@ -55,19 +84,39 @@ export function SceneSidePanel({ overlay }: SceneSidePanelProps): React.JSX.Elem
           chunkTexts={SAMPLE_CHUNKS}
           playing={true}
           showDock={true}
+          drawerProgress={drawerProgress}
         />
       </div>
 
-      <CopyOverlay
-        overlay={overlay}
-        title={
-          <>
-            Long-form,{" "}
-            <em style={{ color: "#5b6cff", fontStyle: "normal" }}>natural voices</em>.
-          </>
-        }
-        subtitle="Audio is generated locally in the browser. The text highlights along with the voice, so you can follow or skim."
-      />
+      {overlay ? (
+        <>
+          <div style={{ opacity: readingOpacity }}>
+            <CopyOverlay
+              overlay={overlay}
+              title={
+                <>
+                  Long-form,{" "}
+                  <em style={{ color: "#5b6cff", fontStyle: "normal" }}>natural voices</em>.
+                </>
+              }
+              subtitle="Audio is generated locally in the browser. The text highlights along with the voice, so you can follow or skim."
+            />
+          </div>
+          <div style={{ opacity: libraryOpacity }}>
+            <CopyOverlay
+              overlay={overlay}
+              startFrame={DRAWER_IN}
+              title={
+                <>
+                  Your library,{" "}
+                  <em style={{ color: "#5b6cff", fontStyle: "normal" }}>one tap away</em>.
+                </>
+              }
+              subtitle="Every reading is saved locally. Slide out the history to pick up where you left off."
+            />
+          </div>
+        </>
+      ) : null}
     </AbsoluteFill>
   );
 }

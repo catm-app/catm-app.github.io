@@ -15,6 +15,11 @@ import { COLORS, FONT } from "../theme";
 
 const PANEL_WIDTH = 420;
 
+// The marquee tile is only 560 tall — trim to two paragraphs so the reader
+// plus the now-playing dock both fit without the dock being clipped. The
+// highlighted chunk (currentTime 18s) lands in the second paragraph.
+const MARQUEE_TEXT = SAMPLE_TEXT.split("\n\n").slice(0, 2).join("\n\n");
+
 export function PromoMarquee(): React.JSX.Element {
   return (
     <AbsoluteFill
@@ -103,18 +108,15 @@ export function PromoMarquee(): React.JSX.Element {
           borderLeft: `1px solid ${COLORS.border}`,
           boxShadow: "-1px 0 0 rgba(13,14,18,0.06), -24px 0 60px rgba(13,14,18,0.10)",
           overflow: "hidden",
-          // Push the rail (which sits below the dock in panel mode) out of
-          // view; the marquee is only 560 tall and the rail's footer would
-          // crowd a layout designed to read "extension reading aloud".
         }}
       >
-        <div style={{ width: PANEL_WIDTH, height: 800 }}>
+        <div style={{ width: PANEL_WIDTH, height: "100%" }}>
           <DemoApp
             mode="panel"
             sessions={MOCK_SESSIONS.slice(0, 1)}
             activeId={"s-current"}
             title="The deep sea has been hiding from us"
-            sourceText={SAMPLE_TEXT}
+            sourceText={MARQUEE_TEXT}
             voice="af_heart"
             speed={1.25}
             status={{ kind: "ready", device: "webgpu" }}

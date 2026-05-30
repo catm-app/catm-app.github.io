@@ -115,7 +115,7 @@ export function YouTubeThumbnail(): React.JSX.Element {
           overflow: "hidden",
         }}
       >
-        <div style={{ width: PANEL_WIDTH, height: 800 }}>
+        <div style={{ width: PANEL_WIDTH, height: "100%" }}>
           <DemoApp
             mode="panel"
             sessions={MOCK_SESSIONS.slice(0, 1)}
