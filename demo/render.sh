@@ -3,14 +3,24 @@
 # and ./out/still-*.png for CWS screenshots. Then build the README GIF.
 #
 # Usage:
-#   ./render.sh                  — full pipeline: video, stills, tiles, GIF
+#   ./render.sh                  — full pipeline: render everything, then publish
 #   ./render.sh video            — full video to out/demo.mp4
 #   ./render.sh stills           — one PNG per scene to out/still-*.png (overlay off)
 #   ./render.sh still <frame>    — single PNG (overlay off) to out/still-<frame>.png
 #   ./render.sh tiles            — CWS promo tiles to out/promo-{small,marquee}.png
 #   ./render.sh thumbnail        — 1280×720 YouTube thumbnail to out/youtube-thumbnail.png
+#   ./render.sh youtube          — 1920×1080 pillarboxed master from out/demo.mp4
 #   ./render.sh gif [width]      — convert out/demo.mp4 → ../docs/demo.gif
 #                                  (default 960px wide, palette-optimised)
+#   ./render.sh publish          — copy out/* into their committed homes
+#
+# Committed homes (publish copies out/ → these; `gif` writes docs/demo.gif itself):
+#   docs/demo.gif                README hero
+#   docs/cws/*.png               CWS store listing — 5 stills + 2 promo tiles
+#   docs/youtube/demo.mp4        YouTube upload master (1080p) — NOT deployed to Pages
+#   docs/youtube/thumbnail.png   YouTube thumbnail (1280×720)
+#   marketing/demo.mp4           landing-page <video> loop (1280×800)
+#   marketing/demo-poster.png    landing-page <video> poster (opening frame)
 
 set -euo pipefail
 
@@ -49,6 +59,51 @@ render_stills() {
   done
 }
 
+render_tiles() {
+  build_image
+  echo "── tile: promo-small (440×280) ──"
+  run_remotion npx remotion still PromoSmall --frame=0 out/promo-small.png
+  echo "── tile: promo-marquee (1400×560) ──"
+  run_remotion npx remotion still PromoMarquee --frame=0 out/promo-marquee.png
+}
+
+render_thumbnail() {
+  build_image
+  echo "── thumbnail: youtube-thumbnail (1280×720) ──"
+  run_remotion npx remotion still YouTubeThumbnail --frame=0 out/youtube-thumbnail.png
+}
+
+# Pad the 1280×800 (8:5) render into a 1920×1080 (16:9) frame so the YouTube
+# upload reads as designed instead of relying on YouTube's auto-pillarbox.
+# Bars are filled with the brand background (--bg-0) rather than black.
+render_youtube() {
+  test -f out/demo.mp4 || { echo "out/demo.mp4 missing — run ./render.sh video first"; exit 1; }
+  repo_root="$(cd .. && pwd)"
+  echo "── youtube: 1920×1080 pillarbox master ──"
+  docker run --rm -v "$repo_root":/work -w /work "$FFMPEG_IMAGE" \
+    -i demo/out/demo.mp4 \
+    -vf "scale=-2:1080,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=0xFAFBFC" \
+    -c:v libx264 -pix_fmt yuv420p -crf 20 -preset medium -movflags +faststart -an \
+    -y demo/out/youtube-master.mp4
+}
+
+# Copy rendered artefacts from out/ (gitignored) into their committed homes.
+# Keeps the README, CWS listing, marketing site, and YouTube bundle in sync
+# from a single render so nothing goes stale by hand.
+publish() {
+  local docs="../docs" mkt="../marketing"
+  mkdir -p "$docs/cws" "$docs/youtube"
+  for n in onboarding sidepanel voices fulltab privacy; do
+    cp "out/still-${n}.png" "$docs/cws/${n}.png"
+  done
+  cp out/promo-small.png out/promo-marquee.png "$docs/cws/"
+  cp out/demo.mp4 "$mkt/demo.mp4"
+  cp out/still-onboarding.png "$mkt/demo-poster.png"
+  cp out/youtube-master.mp4 "$docs/youtube/demo.mp4"
+  cp out/youtube-thumbnail.png "$docs/youtube/thumbnail.png"
+  echo "Published: docs/cws/*.png, docs/youtube/{demo.mp4,thumbnail.png}, marketing/{demo.mp4,demo-poster.png}"
+}
+
 case "${1:-all}" in
   video)
     build_image
@@ -66,16 +121,16 @@ case "${1:-all}" in
     render_stills
     ;;
   tiles)
-    build_image
-    echo "── tile: promo-small (440×280) ──"
-    run_remotion npx remotion still PromoSmall --frame=0 out/promo-small.png
-    echo "── tile: promo-marquee (1400×560) ──"
-    run_remotion npx remotion still PromoMarquee --frame=0 out/promo-marquee.png
+    render_tiles
     ;;
   thumbnail)
-    build_image
-    echo "── thumbnail: youtube-thumbnail (1280×720) ──"
-    run_remotion npx remotion still YouTubeThumbnail --frame=0 out/youtube-thumbnail.png
+    render_thumbnail
+    ;;
+  youtube)
+    render_youtube
+    ;;
+  publish)
+    publish
     ;;
   gif)
     width="${2:-960}"
@@ -102,15 +157,15 @@ case "${1:-all}" in
     build_image
     run_remotion npx remotion render Demo out/demo.mp4
     render_stills
-    echo "── tile: promo-small (440×280) ──"
-    run_remotion npx remotion still PromoSmall --frame=0 out/promo-small.png
-    echo "── tile: promo-marquee (1400×560) ──"
-    run_remotion npx remotion still PromoMarquee --frame=0 out/promo-marquee.png
+    render_tiles
+    render_thumbnail
+    render_youtube
     "$0" gif
+    publish
     ;;
   *)
     echo "Unknown command: $1" >&2
-    sed -n '2,12p' "$0" >&2
+    sed -n '5,15p' "$0" >&2
     exit 2
     ;;
 esac
