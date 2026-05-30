@@ -2327,8 +2327,12 @@ textarea {
   padding: 12px 12px 14px;
   gap: 12px;
 }
+/* Reclaim the vertical space freed by dropping the rail: the composer fills
+   the stage (toolbar pinned at its foot, dock below it), and the editor grows
+   to fill the composer, scrolling its own text rather than the whole panel. */
 .shell-panel .composer {
-  min-height: 220px;
+  flex: 1;
+  min-height: 0;
   border-radius: 10px;
 }
 .shell-panel .composer textarea,
@@ -2338,7 +2342,9 @@ textarea {
   line-height: 1.6;
 }
 .shell-panel .editable-text {
-  height: 38vh;
+  flex: 1;
+  height: auto;
+  min-height: 0;
 }
 .shell-panel .toolbar {
   padding: 8px 10px;
