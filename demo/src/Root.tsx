@@ -7,6 +7,7 @@ import "../../src/app.css";
 import { Demo } from "./Demo";
 import { PromoMarquee } from "./promo/PromoMarquee";
 import { PromoSmall } from "./promo/PromoSmall";
+import { YouTubeThumbnail } from "./promo/YouTubeThumbnail";
 import { FPS, TOTAL_FRAMES } from "./theme";
 
 // Cast so the Composition's index-signature constraint accepts the typed
@@ -58,6 +59,14 @@ export const RemotionRoot = (): React.JSX.Element => {
         fps={30}
         width={1400}
         height={560}
+      />
+      <PromoComposition
+        id="YouTubeThumbnail"
+        component={YouTubeThumbnail}
+        durationInFrames={1}
+        fps={30}
+        width={1280}
+        height={720}
       />
     </>
   );

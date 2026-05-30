@@ -8,6 +8,7 @@
 #   ./render.sh stills           — one PNG per scene to out/still-*.png (overlay off)
 #   ./render.sh still <frame>    — single PNG (overlay off) to out/still-<frame>.png
 #   ./render.sh tiles            — CWS promo tiles to out/promo-{small,marquee}.png
+#   ./render.sh thumbnail        — 1280×720 YouTube thumbnail to out/youtube-thumbnail.png
 #   ./render.sh gif [width]      — convert out/demo.mp4 → ../docs/demo.gif
 #                                  (default 960px wide, palette-optimised)
 
@@ -70,6 +71,11 @@ case "${1:-all}" in
     run_remotion npx remotion still PromoSmall --frame=0 out/promo-small.png
     echo "── tile: promo-marquee (1400×560) ──"
     run_remotion npx remotion still PromoMarquee --frame=0 out/promo-marquee.png
+    ;;
+  thumbnail)
+    build_image
+    echo "── thumbnail: youtube-thumbnail (1280×720) ──"
+    run_remotion npx remotion still YouTubeThumbnail --frame=0 out/youtube-thumbnail.png
     ;;
   gif)
     width="${2:-960}"
