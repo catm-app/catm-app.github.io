@@ -236,6 +236,30 @@ test("catm full journey on the loaded extension", async () => {
       ]);
       expect(download.suggestedFilename()).toMatch(/\.zip$/);
 
+      // ── Side-panel surface: same origin, no ?ctx=tab, so IS_SIDE_PANEL is
+      // true. History now lives in a left slide-in drawer; perf + reset are
+      // tab-only. The session, model cache, and OPFS audio all persist across
+      // the navigation (same extension origin).
+      await page.goto(`chrome-extension://${extId}/app/index.html`);
+      await page.waitForFunction(() => document.documentElement.dataset.ttsDevice !== undefined);
+
+      // Management chrome is dropped from the panel.
+      await expect(page.getByTestId("reset")).toHaveCount(0);
+      await expect(page.locator(".perf-section")).toHaveCount(0);
+
+      // The recording isn't reachable until the drawer is opened.
+      await page.getByTestId("history-open").click();
+      await expect(page.getByTestId("library-row")).toHaveCount(1);
+
+      // Picking a reading opens it and dismisses the drawer (close-on-select).
+      await page.getByTestId("library-play").first().click();
+      await expect(page.getByTestId("history-open")).toHaveAttribute("aria-expanded", "false");
+      await expect
+        .poll(async () => audio.evaluate((el) => (el as HTMLAudioElement).src), { timeout: 5_000 })
+        .toMatch(/^blob:/);
+
+      // Reopen the drawer and delete the last reading from it.
+      await page.getByTestId("history-open").click();
       await page.getByTestId("library-delete").first().click();
       await expect(page.getByTestId("library-empty")).toBeVisible();
     });

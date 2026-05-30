@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BrandMark } from "./components/BrandMark";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { DiscardDialog } from "./components/DiscardDialog";
+import { HistoryDrawer } from "./components/HistoryDrawer";
 import { PopoutButton } from "./components/PopoutButton";
 import { Rail } from "./components/Rail";
 import { consumeExtensionShare, type IngestedDraft } from "./extensionIngest";
@@ -143,6 +144,7 @@ export function App(): React.JSX.Element {
   const [playToken, setPlayToken] = useState(0);
   const [showReadyStamp, setShowReadyStamp] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [voice, setVoice] = useState<VoiceId>(() => readVoice());
   const [liveChunkDurations, setLiveChunkDurations] = useState<number[] | null>(null);
   const [liveChunkTexts, setLiveChunkTexts] = useState<string[] | null>(null);
@@ -732,21 +734,74 @@ export function App(): React.JSX.Element {
               loading…
             </span>
           ) : null}
-          {IS_SIDE_PANEL ? <PopoutButton /> : null}
+          {IS_SIDE_PANEL ? (
+            <>
+              <button
+                type="button"
+                className="panel-iconbtn primary"
+                onClick={onNewDocument}
+                title="New reading"
+                aria-label="New reading"
+                data-testid="new-document"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className={`panel-iconbtn${historyOpen ? " on" : ""}`}
+                onClick={() => setHistoryOpen(true)}
+                title="History"
+                aria-label="History"
+                aria-expanded={historyOpen}
+                data-testid="history-open"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 3v5h5" />
+                  <path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" />
+                  <path d="M12 7v5l3 2" />
+                </svg>
+              </button>
+              <PopoutButton />
+            </>
+          ) : null}
         </header>
-        <Rail
-          sessions={sessions}
-          activeId={doc.id}
-          recordingId={status.kind === "synthesising" ? doc.id : null}
-          modified={modified}
-          storage={storage}
-          perf={perf}
-          onNewDocument={onNewDocument}
-          onOpen={onOpenSession}
-          onDelete={(id) => void onDeleteSession(id)}
-          onExport={(id) => void onExportSession(id)}
-          onReset={() => setConfirmReset(true)}
-        />
+        {IS_SIDE_PANEL ? null : (
+          <Rail
+            sessions={sessions}
+            activeId={doc.id}
+            recordingId={status.kind === "synthesising" ? doc.id : null}
+            modified={modified}
+            storage={storage}
+            perf={perf}
+            onNewDocument={onNewDocument}
+            onOpen={onOpenSession}
+            onDelete={(id) => void onDeleteSession(id)}
+            onExport={(id) => void onExportSession(id)}
+            onReset={() => setConfirmReset(true)}
+          />
+        )}
 
         <main className="main">
           <ReaderView
@@ -775,6 +830,20 @@ export function App(): React.JSX.Element {
           />
         </main>
       </div>
+
+      {IS_SIDE_PANEL ? (
+        <HistoryDrawer
+          open={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          sessions={sessions}
+          activeId={doc.id}
+          recordingId={status.kind === "synthesising" ? doc.id : null}
+          modified={modified}
+          onOpen={onOpenSession}
+          onDelete={(id) => void onDeleteSession(id)}
+          onExport={(id) => void onExportSession(id)}
+        />
+      ) : null}
 
       {confirmReset ? (
         <ConfirmDialog
